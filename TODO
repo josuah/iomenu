@@ -1,0 +1,8 @@
+-	Check return values for every function that may fail.
+
+-	Add support for a default input string (when I will need it or if
+	someone ask for it).
+
+-	Fix the input shifting the line count by 1.
+
+-	Case insensitive match.

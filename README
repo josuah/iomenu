@@ -1,0 +1,90 @@
+iomenu - Filter lines from stdin with an interactive menu
+
+ .  _  __   _  __
+ | (_) ||| (/_ | | |_|
+
+________________________________________________________________________________
+
+	iomenu is a terminal tool to interactively select lines from stdin, and
+	print them out to the standard output.
+
+	You can use scripts made for dmenu [1], as iomenu mostly the same way.
+
+	Thanks to the authors of dmenu [1], sandy [2], vis-menu[3], pep[4], ...
+	that taught me C by writing some.
+
+
+Getting started
+________________________________________________________________________________
+
+	You can install iomenu by running:
+	
+	"""
+	make install
+	"""
+	
+	You can optionnaly set a "PREFIX" variable to set the path to
+	install to:
+	
+	"""
+	make PREFIX="$HOME/bin" install
+	"""
+
+	All you need to build it is a C compiler:  It is plain C89 source
+	code without external dependencies.
+
+	All usage details are written in the man page, "iomenu.1".
+
+
+Examples
+________________________________________________________________________________
+
+
+Open a bookmark from a list in a text file
+
+	"""
+	iomenu < bookmarks-urls.txt | xargs firefox
+	"""
+
+
+Go to a subdirectory
+
+	"""
+	cd "$(find . -type d | iomenu)"
+	"""
+
+
+Edit a file located in ~
+
+	"""
+	$EDITOR "$(find -type f | iomenu)"
+	"""
+
+
+Play an audio file
+
+	"""
+	mplayer "$(find ~/Music | iomenu)"
+	"""
+
+
+Select a background job to attach to
+
+	"""
+	fg "%$(jobs | iomenu | cut -c 2)"
+	"""
+
+
+Filter "ps" output and print a process ID
+
+	"""
+	{ printf '#'; ps ax; } | iomenu -s '#' | sed -r 's/ *([0-9]*).*/\1/'
+	"""
+
+
+________________________________________________________________________________
+
+1	http://git.suckless.org/dmenu/tree/dmenu.c
+2	http://git.suckless.org/sandy/tree/sandy.c
+3	http://github.com/martanne/vis/blob/master/vis-menu.c
+4	http://github.com/charles-l/pep/blob/master/pep.c

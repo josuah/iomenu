@@ -1,0 +1,16 @@
+T='	'
+choice="$(
+	mdirs "${MAIL%/*}" | while IFS='' read -r dir
+	do
+		printf '#\n# %s\n' "${dir##*/}"
+
+		mlist "$dir" | mpick :u | msort -d | mthread |
+		mscan -f '%D  %24f %u%t%2i%120S'
+
+	done | iomenu -N -H -s '#' -l 255
+)"
+
+[ "$choice" ] || exit 0
+
+mlist "${MAIL%/*}/${choice%%$T*}" | mpick :u | msort -d | mthread |
+sed -n "${choice#*$T}p" | mshow | $PAGER

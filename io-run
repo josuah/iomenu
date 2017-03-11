@@ -1,0 +1,100 @@
+# Prompt for a programs to run
+
+
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"
+
+
+usage()
+{
+	printf 'Usage: %s [cmd [args...] [+]]
+	
+cmd	do not prompt for a command and run cmd right away
+args	do not prompt for arguments neither and use arg
++	if present after the arguments, prompt for a path\n' "${0##*/}"
+}
+
+
+#
+# Update the cache and get the command to run.
+#
+update_cache()
+(
+	IFS=':' u=0
+
+	for dir in $PATH
+	do
+		[ "$CACHE/dmenu_run" -ot "$dir" ] && u=1
+	done
+
+	[ "$u" -eq 1 ] && find -L $PATH -type f -exec test -x {} \; -print |
+		sed 's|.*/||' | sort -u > "$CACHE/dmenu_run"
+)
+
+
+#
+# Prompt for options for a given command and log it to an history file
+#
+get_options()
+(
+	local command="$1"
+
+	printf '%s ' "$command" >> "$CACHE/iomenu/run"
+
+	while read -r cmd opt
+	do
+		[ "$command" = "$cmd" ] && printf '%s\n' "$opt"
+	done < "$CACHE/iomenu/run" |
+		iomenu -p "$command" | tee -a "$CACHE/iomenu/run"
+
+	sort -u "$CACHE/iomenu/run" -o "$CACHE/iomenu/run"
+)
+
+
+#
+# Prompt for a file path in $HOME and print it.
+#
+get_path()
+(
+	find "$HOME" ! -path "$CACHE" ! -path '*/.git/*' |
+		sed -r "s/.{${#HOME}}/~/" | iomenu -l 256 | sed 's/^~//'
+)
+
+
+#
+# Get the options according to the command and run it
+#
+run()
+(
+	command="${1:-$(iomenu -l 256 -s '#' < "$CACHE/dmenu_run")}"
+
+	[ -z "$command" ] && exit 1
+
+	options="$(get_options "$command")"
+
+	if [ "$options" ] && [ -z "${options%%*+}" ]
+	then
+		path="$(get_path)" options="${options%+}"
+	fi
+
+	if [ "$path" ]
+	then exec $command $options "$path"
+	else exec $command $options
+	fi
+)
+
+
+main()
+(
+	mkdir -p "$CACHE/iomenu"
+
+	if [ $# -gt 0 ] && [ -z "${1##-*}" ]
+	then
+		usage
+	else
+		update_cache
+		run "$@"
+	fi
+)
+
+
+main "$@"
