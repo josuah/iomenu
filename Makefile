@@ -19,4 +19,4 @@ clean:
 install: iomenu
 	mkdir -p  $(PREFIX)/bin $(MANPREFIX)/man/man1
 	cp *.1 $(MANPREFIX)/man/man1/
-	cp iomenu io-* $(PREFIX)/bin/
+	cp iomenu $(PREFIX)/bin/
