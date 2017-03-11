@@ -1,9 +1,0 @@
-# prompt a man page to open
-
-man "$(
-	IFS=':'
-	find $(manpath -q) ! -type d |
-		sed -r 's/.*\/(.*).[0-9](.gz)?$/\1/' |
-		sort -u |
-		iomenu
-)"
