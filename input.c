@@ -4,7 +4,7 @@
 #include <string.h>
 #include <termios.h>
 
-#include "main.h"
+#include "iomenu.h"
 
 
 /*
@@ -213,16 +213,6 @@ action_print_selection(Buffer *buffer, int return_input, Opt *opt)
 	Line *line = NULL;
 
 	fputs("\r\033[K", stderr);
-
-	if (opt->print_header) {
-		for (line = buffer->current; line; line = line->prev) {
-			if (line->header) {
-				fputs(line->comment, stdout);
-				break;
-			}
-		}
-		fputc((int) '\t', stdout);
-	}
 
 	if (opt->print_number) {
 		if (buffer->matching > 0)

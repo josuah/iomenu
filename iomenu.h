@@ -13,7 +13,6 @@
 typedef struct Opt {
 	int   line_numbers;
 	int   print_number;
-	int   print_header;
 	char  validate_key;
 	char *separator;
 	int   lines;
@@ -22,39 +21,19 @@ typedef struct Opt {
 
 
 /*
- * Line coming from stdin, wrapped in a header.
+ * Line coming from stdin
  */
 typedef struct Line {
 	char *content;               /* sent as output and matched by input */
-	char *comment;               /* displayed at the right of the content */
-
-	int  number;                 /* set here as order will not change */
-	int  matches;                /* whether it matches buffer's input */
-	int  header;                 /* whether the line is a header */
-
-	struct Line *prev;           /* doubly linked list structure */
-	struct Line *next;
+	int   matches;                /* whether it matches buffer's input */
 } Line;
 
 
-/*
- * Buffer containing a doubly linked list of headers
- */
-typedef struct Buffer {
-	int total;                   /* total number of line in buffer */
-	int matching;                /* number lines matching the input */
+/* iomenu */
 
-	char    input[LINE_SIZE];    /* string from user's keyboard */
-
-	Line   *current;             /* selected line, highlighted */
-	Line   *first;               /* boundaries of the linked list */
-	Line   *last;
-} Buffer;
-
-
-/* main */
-
-void     usage(void);
+void             die(const char *);
+struct  termios set_terminal(int);
+void            usage(void);
 
 
 /* buffer */
@@ -86,10 +65,3 @@ void     action_jump(Buffer *, int);
 void     action_print_selection(Buffer *,int, Opt *);
 void     action_remove_word_input(Buffer *);
 void     action_add_character(Buffer *, char);
-
-
-/* util */
-
-void             die(const char *);
-struct termios   set_terminal(int);
-char           * expand_tabs(char *);

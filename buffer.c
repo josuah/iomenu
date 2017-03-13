@@ -3,18 +3,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "main.h"
+#include "iomenu.h"
 
 
 /*
- * Fill the buffer apropriately with the lines and headers.
+ * Fill the buffer apropriately with the lines
  */
 Buffer *
 fill_buffer(char *separator)
 {
 	/* fill buffer with string */
 	char    s[LINE_SIZE];
-	Buffer *buffer = malloc(sizeof(Buffer));
+	Line  **buffer = malloc(sizeof(Line));
 	FILE   *fp     = stdin;
 	int     l;
 
@@ -26,21 +26,12 @@ fill_buffer(char *separator)
 
 	/* empty line in case no line come from stdin */
 	buffer->first = buffer->current = malloc(sizeof(Line));
-	buffer->first->content = buffer->first->comment = "";
 	buffer->first->next = buffer->first->prev = NULL;
 	buffer->last = NULL;
 
 	/* read the file into a doubly linked list of lines */
-	for (l = 1; fgets(s, LINE_SIZE, fp); buffer->total++, l++) {
+	for (l = 1; fgets(s, LINE_SIZE, fp); buffer->total++, l++)
 		buffer->last = add_line(buffer, l, s, separator, buffer->last);
-
-		l = buffer->last->header ? 0 : l;
-	}
-
-	/* prevent initial current line to be a header */
-	buffer->current = buffer->first;
-	while (buffer->current->next && buffer->current->header)
-		buffer->current = buffer->current->next;
 
 	return buffer;
 }
@@ -70,40 +61,16 @@ add_line(Buffer *buffer, int number, char *s, char *separator, Line *prev)
 }
 
 
-/*
- * Parse the line content to determine if it is a header and identify the
- * separator if any.
- */
 Line *
 new_line(char *s, char *separator)
 {
 	Line *line = malloc(sizeof(Line));
-	char *sep  = separator ? strstr(s, separator) : NULL;
-	int   pos  = sep ? (int) (sep - s) : (int) strlen(s) - 1;
-
-	/* header is when separator is the first character of the line */
-	line->header = (sep == s);
 
 	/* strip trailing newline */
 	s[strlen(s) - 1] = '\0';
 
 	/* fill line->content */
-	line->content = malloc((pos + 1) * sizeof(char));
-	strncpy(line->content, s, pos);
-
-	/* fill line->comment */
-	line->comment = malloc((strlen(s) - pos) * sizeof(char));
-	if (sep) {
-		strcpy(line->comment, s + pos + strlen(separator));
-	}
-
-	/* strip trailing whitespaces from line->content */
-	for (pos--; pos > 0 && isspace(line->content[pos]); pos--)
-		line->content[pos] = '\0';
-
-	/* strip leading  whitespaces from line->comment */
-	for (pos = 0; isspace(line->comment[pos]); pos++);
-	line->comment += pos;
+	line->content = s;
 
 	return line;
 }
@@ -161,7 +128,7 @@ filter_lines(Buffer *buffer, int inc)
 			buffer->current = line;
 		} else if ((inc && line->matches) || (!inc && !line->matches)) {
 			line->matches     = match_line(line, tokv, tokc);
-			buffer->matching += line->header ? 0 : line->matches;
+			buffer->matching += line->matches;
 		}
 
 		line = line->next;
@@ -177,9 +144,6 @@ match_line(Line *line, char **tokv, size_t tokc)
 {
 	size_t i, match = 1, offset = 0;
 
-	if (line->header)
-		return 1;
-
 	for (i = 0; i < tokc && match; i++)
 		match = !!strstr(line->content + offset, tokv[i]);
 
@@ -193,7 +157,7 @@ match_line(Line *line, char **tokv, size_t tokc)
 Line *
 matching_prev(Line *line)
 {
-	while ((line = line->prev) && (!line->matches || line->header));
+	while ((line = line->prev) && !line->matches);
 	return line;
 }
 
@@ -204,6 +168,6 @@ matching_prev(Line *line)
 Line *
 matching_next(Line *line)
 {
-	while ((line = line->next) && (!line->matches || line->header));
+	while ((line = line->next) && !line->matches);
 	return line;
 }
