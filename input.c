@@ -11,7 +11,7 @@
  * Listen for the user input and call the appropriate functions.
  */
 int
-input_get(Buffer *buffer, int tty_fd, Opt *opt)
+input_get(int tty_fd)
 {
 	FILE *tty_fp = fopen("/dev/tty", "r");
 	int   exit_code;
@@ -20,8 +20,8 @@ input_get(Buffer *buffer, int tty_fd, Opt *opt)
 	struct termios termio_old = set_terminal(tty_fd);
 
 	/* get input char by char from the keyboard. */
-	while ((exit_code = input_key(tty_fp, buffer, opt)) == CONTINUE)
-		draw_screen(buffer, tty_fd, opt);
+	while ((exit_code = input_key(tty_fp)) == CONTINUE)
+		draw_screen(tty_fd);
 
 	/* resets the terminal to the previous state. */
 	tcsetattr(tty_fd, TCSANOW, &termio_old);
@@ -36,61 +36,62 @@ input_get(Buffer *buffer, int tty_fd, Opt *opt)
  * Perform action associated with key
  */
 int
-input_key(FILE *tty_fp, Buffer *buffer, Opt *opt)
+input_key(FILE *tty_fp)
 {
 	char key = fgetc(tty_fp);
 
-	if (key == opt->validate_key) {
-		action_print_selection(buffer, 0, opt);
+	if (key == '\n') {
+		action_print_selection(0);
 		return EXIT_SUCCESS;
 	}
 
 	switch (key) {
 
 	case CONTROL('C'):
-		draw_clear(opt->lines);
+		draw_clear(opt_lines);
 		return EXIT_FAILURE;
 
 	case CONTROL('U'):
-		buffer->input[0] = '\0';
-		buffer->current  = buffer->first;
-		filter_lines(buffer, 0);
-		action_jump(buffer, 1);
-		action_jump(buffer, -1);
+		input[0] = '\0';
+		buffer[current] = first;
+		filter_lines(0);
+		action_jump(1);
+		action_jump(-1);
 		break;
 
 	case CONTROL('W'):
 		action_remove_word_input(buffer);
-		filter_lines(buffer, 0);
+		filter_lines(0);
 		break;
 
 	case 127:
 	case CONTROL('H'):  /* backspace */
-		buffer->input[strlen(buffer->input) - 1] = '\0';
-		filter_lines(buffer, 0);
-		action_jump(buffer, 0);
+		input[strlen(input) - 1] = '\0';
+		filter_lines(0);
+		action_jump(0);
 		break;
 
 	case CONTROL('N'):
-		action_jump(buffer, 1);
+		action_jump(1);
+	extern char *input;
 		break;
 
 	case CONTROL('P'):
-		action_jump(buffer, -1);
+		action_jump(-1);
 		break;
 
 	case CONTROL('I'):  /* tab */
-		strcpy(buffer->input, buffer->current->content);
-		filter_lines(buffer, 1);
+		strcpy(input, buffer[current]->content);
+		filter_lines(1);
 		break;
 
 	case CONTROL('J'):
 	case CONTROL('M'):  /* enter */
-		action_print_selection(buffer, 0, opt);
+		action_print_selection(0);
 		return EXIT_SUCCESS;
 
 	case CONTROL('@'):  /* ctrl + space */
-		action_print_selection(buffer, 1, opt);
+		action_print_selection(1);
 		return EXIT_SUCCESS;
 
 	case CONTROL('['):  /* escape */
@@ -100,11 +101,11 @@ input_key(FILE *tty_fp, Buffer *buffer, Opt *opt)
 			switch (fgetc(tty_fp)) {
 
 			case 'A':  /* up */
-				action_jump(buffer, -1);
+				action_jump(-1);
 				break;
 
 			case 'B':  /* Down */
-				action_jump(buffer, 1);
+				action_jump(1);
 				break;
 			}
 			break;
@@ -117,11 +118,11 @@ input_key(FILE *tty_fp, Buffer *buffer, Opt *opt)
 				switch (key) {
 
 				case '5': /* page up */
-					action_jump(buffer, -10);
+					action_jump(-10);
 					break;
 
 				case '6': /* page down */
-					action_jump(buffer, 10);
+					action_jump(10);
 					break;
 				}
 				break;
@@ -131,7 +132,7 @@ input_key(FILE *tty_fp, Buffer *buffer, Opt *opt)
 		break;
 
 	default:
-		action_add_character(buffer, key);
+		action_add_character(key);
 	}
 
 	return CONTINUE;
@@ -139,17 +140,17 @@ input_key(FILE *tty_fp, Buffer *buffer, Opt *opt)
 
 
 /*
- * Set the current line to next/previous/any matching line.
+ * Set the buffer[current] line to next/previous/any matching line.
  */
 void
-action_jump(Buffer *buffer, int direction)
+action_jump(int direction)
 {
-	Line * line   = buffer->current;
+	Line * line   = buffer[current];
 	Line * result = line;
 
-	if (direction == 0 && !buffer->current->matches) {
-		line   =               matching_next(buffer->current);
-		line   = line ? line : matching_prev(buffer->current);
+	if (direction == 0 && !buffer[current]->matches) {
+		line   =               matching_next(buffer[current]);
+		line   = line ? line : matching_prev(buffer[current]);
 		result = line ? line : result;
 	}
 
@@ -163,7 +164,7 @@ action_jump(Buffer *buffer, int direction)
 		result = line ? line : result;
 	}
 
-	buffer->current = result;
+	buffer[current] = result;
 }
 
 
@@ -171,17 +172,17 @@ action_jump(Buffer *buffer, int direction)
  * Remove the last word from the buffer's input
  */
 void
-action_remove_word_input(Buffer *buffer)
+action_remove_word_input()
 {
-	size_t length = strlen(buffer->input) - 1;
+	size_t length = strlen(input) - 1;
 	int i;
 
-	for (i = length; i >= 0 && isspace(buffer->input[i]); i--)
-		buffer->input[i] = '\0';
+	for (i = length; i >= 0 && isspace(input[i]); i--)
+		input[i] = '\0';
 
-	length = strlen(buffer->input) - 1;
-	for (i = length; i >= 0 && !isspace(buffer->input[i]); i--)
-		buffer->input[i] = '\0';
+	length = strlen(input) - 1;
+	for (i = length; i >= 0 && !isspace(input[i]); i--)
+		input[i] = '\0';
 }
 
 
@@ -189,18 +190,18 @@ action_remove_word_input(Buffer *buffer)
  * Add a character to the buffer input and filter lines again.
  */
 void
-action_add_character(Buffer *buffer, char key)
+action_add_character(char key)
 {
-	size_t length = strlen(buffer->input);
+	size_t length = strlen(input);
 
 	if (isprint(key)) {
-		buffer->input[length]     = key;
-		buffer->input[length + 1] = '\0';
+		input[length]     = key;
+		input[length + 1] = '\0';
 	}
 
-	filter_lines(buffer, 1);
+	filter_lines(1);
 
-	action_jump(buffer, 0);
+	action_jump(0);
 }
 
 
@@ -208,20 +209,16 @@ action_add_character(Buffer *buffer, char key)
  * Send the selection to stdout.
  */
 void
-action_print_selection(Buffer *buffer, int return_input, Opt *opt)
+action_print_selection(int return_input)
 {
 	Line *line = NULL;
 
 	fputs("\r\033[K", stderr);
 
-	if (opt->print_number) {
-		if (buffer->matching > 0)
-			printf("%d\n", buffer->current->number);
+	if (return_input || !matching) {
+		puts(input);
 
-	} else if (return_input || !buffer->matching) {
-		puts(buffer->input);
-
-	} else if (buffer->matching > 0) {
-		puts(buffer->current->content);
+	} else if (matching > 0) {
+		puts(buffer[current]->content);
 	}
 }

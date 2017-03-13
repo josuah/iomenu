@@ -1,3 +1,8 @@
+opt_line_numbers  = 0;
+opt_print_number  = 0;
+opt_lines         = 30;
+opt_prompt        = "";
+
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -43,7 +48,7 @@ set_terminal(int tty_fd)
 	termio_new          = termio_old;
 	termio_new.c_lflag &= ~(ICANON | ECHO | IGNBRK);
 
-	/* apply this state to current terminal now (TCSANOW) */
+	/* apply this state to buffer[current] terminal now (TCSANOW) */
 	tcsetattr(tty_fd, TCSANOW, &termio_new);
 
 	return termio_old;
@@ -53,8 +58,7 @@ set_terminal(int tty_fd)
 void
 usage(void)
 {
-	fputs("usage: iomenu [-n] [-N] [-k key] [-s separator] ", stderr);
-	fputs("[-p prompt] [-l lines]\n", stderr);
+	fputs("usage: iomenu [-n] [-p prompt] [-l lines]\n", stderr);
 
 	exit(EXIT_FAILURE);
 }
@@ -67,12 +71,6 @@ main(int argc, char *argv[])
 	Buffer *buffer = NULL;
 	Opt    *opt    = malloc(sizeof(Opt));
 
-	opt->line_numbers  = 0;
-	opt->print_number  = 0;
-	opt->validate_key  = CONTROL('M');
-	opt->separator     = NULL;
-	opt->lines         = 30;
-	opt->prompt        = "";
 
 	/* command line arguments */
 	for (i = 1; i < argc; i++) {
@@ -81,27 +79,16 @@ main(int argc, char *argv[])
 
 		switch (argv[i][1]) {
 		case 'n':
-			opt->line_numbers = 1;
-			break;
-		case 'N':
-			opt->print_number = 1;
-			opt->line_numbers = 1;
-			break;
-		case 'k':
-			opt->validate_key = (argv[++i][0] == '^') ?
-				CONTROL(toupper(argv[i][1])): argv[i][0];
-			break;
-		case 's':
-			opt->separator = argv[++i];
+			opt_line_numbers = 1;
 			break;
 		case 'l':
-			if (sscanf(argv[++i], "%d", &opt->lines) <= 0)
+			if (sscanf(argv[++i], "%d", &opt_lines) <= 0)
 				die("wrong number format after -l");
 			break;
 		case 'p':
 			if (++i >= argc)
-				die("wrong string format after -p");
-			opt->prompt = argv[i];
+				die("missing string after -p");
+			opt_prompt = argv[i];
 			break;
 		default:
 			usage();
@@ -109,15 +96,15 @@ main(int argc, char *argv[])
 	}
 
 	/* command line arguments */
-	buffer = fill_buffer(opt->separator);
+	buffer = fill_buffer();
 
 	/* set the interface */
-	draw_screen(buffer, tty_fd, opt);
+	draw_screen(tty_fd);
 
 	/* listen and interact to input */
-	exit_code = input_get(buffer, tty_fd, opt);
+	exit_code = input_get(tty_fd);
 
-	draw_clear(opt->lines);
+	draw_clear(opt_lines);
 
 	/* close files descriptors and pointers, and free memory */
 	close(tty_fd);

@@ -10,7 +10,7 @@
  * Fill the buffer apropriately with the lines
  */
 Buffer *
-fill_buffer(char *separator)
+fill_buffer(void)
 {
 	/* fill buffer with string */
 	char    s[LINE_SIZE];
@@ -21,48 +21,48 @@ fill_buffer(char *separator)
 	if (!fp)
 		die("Can not open file for reading.");
 
-	buffer->input[0] = '\0';
-	buffer->total = buffer->matching = 1;
+	input[0] = '\0';
+	total = matching = 1;
 
 	/* empty line in case no line come from stdin */
-	buffer->first = buffer->current = malloc(sizeof(Line));
-	buffer->first->next = buffer->first->prev = NULL;
-	buffer->last = NULL;
+	first = buffer[current] = malloc(sizeof(Line));
+	first->next = first->prev = NULL;
+	last = NULL;
 
 	/* read the file into a doubly linked list of lines */
-	for (l = 1; fgets(s, LINE_SIZE, fp); buffer->total++, l++)
-		buffer->last = add_line(buffer, l, s, separator, buffer->last);
+	for (l = 1; fgets(s, LINE_SIZE, fp); total++, l++)
+		last = add_line(l, s, last);
 
 	return buffer;
 }
 
 
 /*
- * Add a line to the end of the current buffer.
+ * Add a line to the end of the buffer[current] buffer.
  */
 Line *
-add_line(Buffer *buffer, int number, char *s, char *separator, Line *prev)
+add_line( int number, Line *prev)
 {
 	/* allocate new line */
-	buffer->last          = new_line(s, separator);
-	buffer->last->number  = number;
-	buffer->last->matches = 1;  /* matches by default */
-	buffer->matching++;
+	last          = new_line(s);
+	last->number  = number;
+	last->matches = 1;  /* matches by default */
+	matching++;
 
 	/* interlink with previous line if exists */
 	if (prev) {
-		prev->next = buffer->last;
-		buffer->last->prev = prev;
+		prev->next = last;
+		last->prev = prev;
 	} else {
-		buffer->first = buffer->last;
+		first = last;
 	}
 
-	return buffer->last;
+	return last;
 }
 
 
 Line *
-new_line(char *s, char *separator)
+new_line(char *s)
 {
 	Line *line = malloc(sizeof(Line));
 
@@ -77,19 +77,19 @@ new_line(char *s, char *separator)
 
 
 /*
- * Free the buffer, also recursing the doubly linked list.
+ * Free the also recursing the doubly linked list.
  */
 void
 free_buffer(Buffer *buffer)
 {
 	Line *next = NULL;
 
-	while (buffer->first) {
-		next = buffer->first->next;
+	while (first) {
+		next = first->next;
 
-		free(buffer->first);
+		free(first);
 
-		buffer->first = next;
+		first = next;
 	}
 
 	free(buffer);
@@ -98,21 +98,21 @@ free_buffer(Buffer *buffer)
 
 /*
  * Set the line->matching state according to the return value of match_line,
- * and buffer->matching to number of matching candidates.
+ * and matching to number of matching candidates.
  *
  * The incremental parameter sets whether check already matching or
  * non-matching lines only.  This is for performance concerns.
  */
 void
-filter_lines(Buffer *buffer, int inc)
+filter_lines( int inc)
 {
-	Line    *line = buffer->first;
+	Line    *line = first;
 	char   **tokv = NULL;
-	char    *s, buf[sizeof buffer->input];
+	char    *s, buf[sizeof input];
 	size_t   n = 0, tokc = 0;
 
 	/* tokenize input from space characters, this comes from dmenu */
-	strcpy(buf, buffer->input);
+	strcpy(buf, input);
 	for (s = strtok(buf, " "); s; s = strtok(NULL, " ")) {
 		if (++tokc > n && !(tokv = realloc(tokv, ++n * sizeof(*tokv))))
 			die("cannot realloc memory for tokv\n");
@@ -121,14 +121,14 @@ filter_lines(Buffer *buffer, int inc)
 	}
 
 	/* match lines */
-	buffer->matching = 0;
+	matching = 0;
 	while (line) {
-		if (buffer->input[0] && !strcmp(buffer->input, line->content)) {
+		if (input[0] && !strcmp(input, line->content)) {
 			line->matches = 1;
-			buffer->current = line;
+			buffer[current] = line;
 		} else if ((inc && line->matches) || (!inc && !line->matches)) {
 			line->matches     = match_line(line, tokv, tokc);
-			buffer->matching += line->matches;
+			matching += line->matches;
 		}
 
 		line = line->next;

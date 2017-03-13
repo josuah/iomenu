@@ -10,21 +10,21 @@
  * Print a line to stderr.
  */
 void
-draw_line(Line *line, int current, const int cols, Opt *opt)
+draw_line(Line *line, const int cols)
 {
-	char  output[LINE_SIZE * sizeof(char)] = "\033[K";
+	char  output[LINE_SIZE] = "\033[K";
 	int n = 0;
 
-	if (opt->line_numbers) {
-		strcat(output, current ? "\033[1;37m" : "\033[1;30m");
+	if (opt_line_numbers) {
+		strcat(output, buffer[current] ? "\033[1;37m" : "\033[1;30m");
 		sprintf(output + strlen(output), "%7d\033[m ", line->number);
 	} else {
-		strcat(output, current ? "\033[1;31m      > " : "        ");
+		strcat(output, buffer[current] ? "\033[1;31m      > " : "        ");
 	}
 	n += 8;
 
-	/* highlight current line */
-	if (current)
+	/* highlight buffer[current] line */
+	if (buffer[current])
 		strcat(output, "\033[1;33m");
 
 	/* content */
@@ -48,23 +48,23 @@ draw_line(Line *line, int current, const int cols, Opt *opt)
  * The total number oflines printed shall not excess 'count'.
  */
 void
-draw_lines(Buffer *buffer, int count, int cols, Opt *opt)
+draw_lines( int count, int cols)
 {
-	Line *line = buffer->current;
+	Line *line = buffer[current];
 	int i = 0;
 	int j = 0;
 
-	/* seek back from current line to the first line to print */
+	/* seek back from buffer[current] line to the first line to print */
 	while (line && i < count - OFFSET) {
 		i    = line->matches ? i + 1 : i;
 		line = line->prev;
 	}
-	line = line ? line : buffer->first;
+	line = line ? line : first;
 
 	/* print up to count lines that match the input */
 	while (line && j < count) {
 		if (line->matches) {
-			draw_line(line, line == buffer->current, cols, opt);
+			draw_line(line, line == buffer[current], cols);
 			j++;
 		}
 
@@ -83,7 +83,7 @@ draw_lines(Buffer *buffer, int count, int cols, Opt *opt)
  * This also has to clear the previous lines.
  */
 void
-draw_screen(Buffer *buffer, int tty_fd, Opt *opt)
+draw_screen( int tty_fd)
 {
 	struct winsize w;
 	int count;
@@ -91,14 +91,14 @@ draw_screen(Buffer *buffer, int tty_fd, Opt *opt)
 	if (ioctl(tty_fd, TIOCGWINSZ, &w) < 0)
 		die("could not get terminal size");
 
-	count = MIN(opt->lines, w.ws_row - 2);
+	count = MIN(opt_lines, w.ws_row - 2);
 
 	fputs("\n", stderr);
-	draw_lines(buffer, count, w.ws_col, opt);
+	draw_lines(count, w.ws_col);
 
 	/* go up to the prompt position and update it */
 	fprintf(stderr, "\033[%dA", count + 1);
-	draw_prompt(buffer, w.ws_col, opt);
+	draw_prompt(w.ws_col);
 }
 
 
@@ -118,11 +118,11 @@ draw_clear(int lines)
  * match.
  */
 void
-draw_prompt(Buffer *buffer, int cols, Opt *opt)
+draw_prompt(int cols)
 {
 	size_t  i;
-	int     matching = buffer->matching;
-	int     total    = buffer->total;
+	int     matching = matching;
+	int     total    = total;
 
 	/* for the '/' separator between the numbers */
 	cols--;
@@ -133,12 +133,12 @@ draw_prompt(Buffer *buffer, int cols, Opt *opt)
 	cols -= !matching ? 1 : 0;  /* 0 also has one digit*/
 
 	/* actual prompt */
-	fprintf(stderr, "\r%-6s\033[K\033[1m>\033[m ", opt->prompt);
-	cols -= 2 + MAX(strlen(opt->prompt), 6);
+	fprintf(stderr, "\r%-6s\033[K\033[1m>\033[m ", opt_prompt);
+	cols -= 2 + MAX(strlen(opt_prompt), 6);
 
 	/* input without overflowing terminal width */
-	for (i = 0; i < strlen(buffer->input) && cols > 0; cols--, i++)
-		fputc(buffer->input[i], stderr);
+	for (i = 0; i < strlen(input) && cols > 0; cols--, i++)
+		fputc(input[i], stderr);
 
 	/* save the cursor position at the end of the input */
 	fputs("\033[s", stderr);

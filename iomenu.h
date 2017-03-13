@@ -8,25 +8,23 @@
 
 
 /*
- * Options from the command line, to pass to each function that need some
- */
-typedef struct Opt {
-	int   line_numbers;
-	int   print_number;
-	char  validate_key;
-	char *separator;
-	int   lines;
-	char *prompt;
-} Opt;
-
-
-/*
  * Line coming from stdin
  */
 typedef struct Line {
 	char *content;               /* sent as output and matched by input */
 	int   matches;                /* whether it matches buffer's input */
 } Line;
+
+
+/* buffer */
+Line *buffer[];
+int   current, matching, total;
+Line *first, *last;
+
+/* flags */
+int   opt_line_numbers;
+int   opt_lines;
+char *opt_prompt, *input;
 
 
 /* iomenu */
@@ -38,30 +36,30 @@ void            usage(void);
 
 /* buffer */
 
-Buffer * fill_buffer(char *);
-void     free_buffer(Buffer *);
-Line   * add_line(Buffer *, int, char *, char *, Line *);
+Line  ** fill_buffer(char *);
+void     free_buffer();
+Line   * add_line(int, char *, char *, Line *);
 Line   * new_line(char *, char *);
 Line   * matching_next(Line *);
 Line   * matching_prev(Line *);
 int      match_line(Line *, char **, size_t);
-void     filter_lines(Buffer *, int);
+void     filter_lines(int);
 
 
 /* draw */
 
-void     draw_screen(Buffer *, int, Opt *);
+void     draw_screen(int);
 void     draw_clear(int);
-void     draw_line(Line *, int, int, Opt *);
-void     draw_lines(Buffer *, int, int, Opt *);
-void     draw_prompt(Buffer *, int, Opt *);
+void     draw_line(Line *, int);
+void     draw_lines(int, int);
+void     draw_prompt(int);
 
 
 /* input */
 
-int      input_get(Buffer *, int, Opt *);
-int      input_key(FILE *, Buffer *, Opt *);
-void     action_jump(Buffer *, int);
-void     action_print_selection(Buffer *,int, Opt *);
-void     action_remove_word_input(Buffer *);
-void     action_add_character(Buffer *, char);
+int      input_get(int);
+int      input_key(FILE *);
+void     action_jump(int);
+void     action_print_selection(int);
+void     action_remove_word_input();
+void     action_add_character(char);
