@@ -19,7 +19,6 @@ input_get(int tty_fd)
 	/* receive one character at a time from the terminal */
 	struct termios termio_old = set_terminal(tty_fd);
 
-	/* get input char by char from the keyboard. */
 	while ((exit_code = input_key(tty_fp)) == CONTINUE)
 		draw_screen(tty_fd);
 
@@ -38,6 +37,8 @@ input_get(int tty_fd)
 int
 input_key(FILE *tty_fp)
 {
+	extern char *input;
+
 	char key = fgetc(tty_fp);
 
 	if (key == '\n') {
@@ -53,14 +54,14 @@ input_key(FILE *tty_fp)
 
 	case CONTROL('U'):
 		input[0] = '\0';
-		buffer[current] = first;
+		current = 0;
 		filter_lines(0);
 		action_jump(1);
 		action_jump(-1);
 		break;
 
 	case CONTROL('W'):
-		action_remove_word_input(buffer);
+		action_remove_word_input();
 		filter_lines(0);
 		break;
 
@@ -73,7 +74,6 @@ input_key(FILE *tty_fp)
 
 	case CONTROL('N'):
 		action_jump(1);
-	extern char *input;
 		break;
 
 	case CONTROL('P'):
@@ -81,7 +81,7 @@ input_key(FILE *tty_fp)
 		break;
 
 	case CONTROL('I'):  /* tab */
-		strcpy(input, buffer[current]->content);
+		strcpy(input, buffer[current]->text);
 		filter_lines(1);
 		break;
 
@@ -148,9 +148,9 @@ action_jump(int direction)
 	Line * line   = buffer[current];
 	Line * result = line;
 
-	if (direction == 0 && !buffer[current]->matches) {
-		line   =               matching_next(buffer[current]);
-		line   = line ? line : matching_prev(buffer[current]);
+	if (direction == 0 && !buffer[current]->match) {
+		line   =               matching_next(current);
+		line   = line ? line : matching_prev(current);
 		result = line ? line : result;
 	}
 
@@ -174,14 +174,13 @@ action_jump(int direction)
 void
 action_remove_word_input()
 {
-	size_t length = strlen(input) - 1;
-	int i;
+	size_t len = strlen(input) - 1;
 
-	for (i = length; i >= 0 && isspace(input[i]); i--)
+	for (int i = len; i >= 0 && isspace(input[i]); i--)
 		input[i] = '\0';
 
-	length = strlen(input) - 1;
-	for (i = length; i >= 0 && !isspace(input[i]); i--)
+	len = strlen(input) - 1;
+	for (int i = len; i >= 0 && !isspace(input[i]); i--)
 		input[i] = '\0';
 }
 
@@ -192,11 +191,11 @@ action_remove_word_input()
 void
 action_add_character(char key)
 {
-	size_t length = strlen(input);
+	size_t len = strlen(input);
 
 	if (isprint(key)) {
-		input[length]     = key;
-		input[length + 1] = '\0';
+		input[len]     = key;
+		input[len + 1] = '\0';
 	}
 
 	filter_lines(1);
@@ -211,14 +210,12 @@ action_add_character(char key)
 void
 action_print_selection(int return_input)
 {
-	Line *line = NULL;
-
 	fputs("\r\033[K", stderr);
 
 	if (return_input || !matching) {
 		puts(input);
 
 	} else if (matching > 0) {
-		puts(buffer[current]->content);
+		puts(buffer[current]->text);
 	}
 }
