@@ -1,7 +1,5 @@
-CFLAGS    = -std=c89 -pedantic -Wall -Wextra -g -static
+CFLAGS    = -std=c99 -pedantic -Wall -Wextra -g -static
 OBJ       = ${SRC:.c=.o}
-
-MANPREFIX = $(PREFIX)
 
 all: clean iomenu
 
@@ -11,6 +9,6 @@ clean:
 	rm -f iomenu ${OBJ}
 
 install: iomenu
-	mkdir -p  $(PREFIX)/bin $(MANPREFIX)/man/man1
-	cp *.1 $(MANPREFIX)/man/man1/
+	mkdir -p  $(PREFIX)/bin $(PREFIX)/man/man1
+	cp *.1 $(PREFIX)/man/man1/
 	cp iomenu $(PREFIX)/bin/
