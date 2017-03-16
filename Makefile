@@ -3,8 +3,6 @@ OBJ       = ${SRC:.c=.o}
 
 all: clean iomenu
 
-iomenu: buffer.c draw.c input.c
-
 clean:
 	rm -f iomenu ${OBJ}
 
