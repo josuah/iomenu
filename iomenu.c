@@ -24,10 +24,10 @@ struct line {
 
 
 char          input[BUFSIZ];
-size_t        current = 0, matching = 0, linec = 0;
+size_t        current = 0, matching = 0, linec = 0, offset = 0;
 struct line **linev = NULL;
 int           opt_lines = 30;
-char         *opt_prompt = ">";
+char         *opt_prompt = "";
 
 
 void
@@ -70,27 +70,26 @@ set_terminal(int tty_fd)
 
 
 void
-fill_linev(void)
+read_lines(void)
 {
 	extern struct line **linev;
 
 	char s[BUFSIZ];
 	size_t size = 1 << 4;
 
-	linev = malloc(sizeof(*linev) * size);
-	input[0] = '\0';
-	linec = matching = 0;
+	linev = malloc(sizeof(struct line *) * size);
+	linev[0] = NULL;
 
 	/* read the file into an array of lines */
 	for (; fgets(s, BUFSIZ, stdin); linec++, matching++) {
-
 		size_t len = strlen(s);
+
 		if (len > 0 && s[len - 1] == '\n')
 			s[len - 1] = '\0';
 
-		if (linec >= size) {
+		if (linec > size) {
 			size *= 2;
-			linev = realloc(linev, sizeof(*linev) * size);
+			linev = realloc(linev, sizeof(struct line *) * size);
 
 			if (linev == NULL)
 				die("realloc");
@@ -98,10 +97,9 @@ fill_linev(void)
 
 		linev[linec] = malloc(sizeof(struct line));
 		linev[linec]->match = 1;
-		linev[linec]->text = s;
+		linev[linec]->text = malloc(len);
+		strcpy(linev[linec]->text, s);
 	}
-
-	linev[linec] = NULL;
 }
 
 
@@ -143,16 +141,10 @@ filter_lines(int inc)
 
 	/* match lines */
 	matching = 0;
-	for (size_t i = 0; i < linec; i++) {
-
-		if (input[0] && strcmp(input, linev[i]->text) == 0) {
-			linev[i]->match = 1;
-
-		} else if (!(inc ^ linev[i]->match)) {
-			linev[i]->match = line_matches(linev[i], tokv, tokc);
-			matching += linev[i]->match;
-		}
-	}
+	for (size_t i = 0; i < linec; i++)
+		/* if (!(inc ^ linev[i]->match)) */
+			matching += linev[i]->match =
+				line_matches(linev[i], tokv, tokc);
 }
 
 
@@ -190,29 +182,17 @@ draw_line(size_t pos, const size_t cols)
 void
 draw_lines(size_t count, size_t cols)
 {
-	size_t i = current, printed = 0;
+	size_t i = offset;
 
-	/* find `count / 3` matching lines above */
-	for (size_t c = 0; c < 2 * count / 3 && i > 0; i--)
-		if (linev[i] && linev[i]->match)
-			c++;
-
-	while (i < linec && printed < count) {
-		if (linev[i]->match) {
-			draw_line(i, cols);
-			i++; printed++;
-		}
-	}
-
-	for (; printed < count; printed++)
-		fputs("\n\033[K", stderr);
+	for (i = 0; i < linec; i++)
+		draw_line(i, cols);
 }
 
 
 void
 draw_prompt(int cols)
 {
-	fprintf(stderr, "\r\033[K\033[1m%7s %s\033[m", opt_prompt, input);
+	fprintf(stderr, "\r\033[K\033[1m%s%s\033[m", opt_prompt, input);
 }
 
 
@@ -272,7 +252,8 @@ add_character(char key)
 	}
 
 	filter_lines(1);
-	current = matching_next(0);
+
+	current = linev[0]->match ? 0 : matching_next(0);
 }
 
 
@@ -329,7 +310,7 @@ input_key(FILE *tty_fp)
 	case CONTROL('H'):  /* backspace */
 		input[strlen(input) - 1] = '\0';
 		filter_lines(0);
-		current = matching_next(0);
+		current = linev[0]->match ? 0 : matching_next(0);
 		break;
 
 	case CONTROL('N'):
@@ -337,7 +318,7 @@ input_key(FILE *tty_fp)
 		break;
 
 	case CONTROL('P'):
-		matching_prev(current);
+		current = matching_prev(current);
 		break;
 
 	case CONTROL('I'):  /* tab */
@@ -366,9 +347,9 @@ input_get(int tty_fd)
 {
 	FILE *tty_fp = fopen("/dev/tty", "r");
 	int   exit_code;
-
-	/* receive one character at a time from the terminal */
 	struct termios termio_old = set_terminal(tty_fd);
+
+	input[0] = '\0';
 
 	while ((exit_code = input_key(tty_fp)) == CONTINUE)
 		draw_screen(tty_fd);
@@ -418,7 +399,7 @@ main(int argc, char *argv[])
 	}
 
 	/* command line arguments */
-	fill_linev();
+	read_lines();
 
 	/* set the interface */
 	draw_screen(tty_fd);
