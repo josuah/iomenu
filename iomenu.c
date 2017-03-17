@@ -26,7 +26,7 @@ struct line {
 char          input[BUFSIZ];
 size_t        current = 0, matching = 0, linec = 0, offset = 0;
 struct line **linev = NULL;
-int           opt_lines = 30;
+int           opt_lines = 0;
 char         *opt_prompt = "";
 
 
@@ -107,7 +107,7 @@ int
 line_matches(struct line *line, char **tokv, size_t tokc)
 {
 	for (size_t i = 0; i < tokc; i++)
-		if (strstr(line->text, tokv[i]) != 0)
+		if (strstr(line->text, tokv[i]) == NULL)
 			return 0;
 
 	return 1;
@@ -172,8 +172,8 @@ matching_next(size_t pos)
 void
 draw_line(size_t pos, const size_t cols)
 {
-	fprintf(stderr,
-		pos == current ? "\033[7m%s\033[m\n" : "%s\n",
+	fprintf(stderr, pos == current ?
+		"\n\033[30;47m\033[K%s\033[m" : "\n\033[K%s",
 		linev[pos]->text
 	);
 }
@@ -182,17 +182,65 @@ draw_line(size_t pos, const size_t cols)
 void
 draw_lines(size_t count, size_t cols)
 {
-	size_t i = offset;
+	size_t printed = 0;
 
-	for (i = 0; i < linec; i++)
-		draw_line(i, cols);
+	for (size_t i = offset; printed < count && i < linec; i++) {
+		if (linev[i]->match) {
+			draw_line(i, cols);
+			printed++;
+		}
+	}
+
+	while (printed++ < count)
+		fputs("\n\033[K", stderr);
+}
+
+
+int
+draw_column(size_t pos, size_t col, size_t cols)
+{
+	fputs(pos == current ? "\033[30;47m " : " ", stderr);
+
+	for (size_t i = 0; col < cols ;) {
+		size_t len = mblen(linev[pos]->text + i, BUFSIZ - i);
+
+		if (len == 0) {
+			i++;
+			continue;
+		}
+
+		col += linev[pos]->text[i] = '\t' ? pos + 1 % 8 : 1;
+
+		for (; len > 0; len--, i++)
+			fputc(linev[pos]->text[i], stderr);
+	}
+
+	fputs(pos == current ? " \033[m" : " ", stderr);
+
+	return col;
 }
 
 
 void
-draw_prompt(int cols)
+draw_columns(size_t cols)
 {
-	fprintf(stderr, "\r\033[K\033[1m%s%s\033[m", opt_prompt, input);
+	size_t col = 20;
+
+	for (size_t i = offset; col < cols; i++)
+		col = draw_column(i, col, cols);
+}
+
+
+void
+draw_prompt(size_t cols)
+{
+	size_t limit = opt_lines ? cols : 20;
+
+	fputc('\r', stderr);
+	for (size_t i = 0; i < limit; i++)
+		fputc(' ', stderr);
+
+	fprintf(stderr, "\r\033[1m%s%s\033[m", opt_prompt, input);
 }
 
 
@@ -200,30 +248,30 @@ void
 draw_screen(int tty_fd)
 {
 	struct winsize w;
-	int count;
+	size_t count;
 
 	if (ioctl(tty_fd, TIOCGWINSZ, &w) < 0)
 		die("could not get terminal size");
 
 	count = MIN(opt_lines, w.ws_row - 2);
 
-	fputs("\n", stderr);
-	draw_lines(count, w.ws_col);
+	if (opt_lines) {
+		draw_lines(count, w.ws_col);
+		fprintf(stderr, "\033[%ldA", count);
+	} else {
+		draw_columns(w.ws_col);
+	}
 
-	/* go up to the prompt position and update it */
-	fprintf(stderr, "\033[%dA", count + 1);
 	draw_prompt(w.ws_col);
 }
 
 
 void
-draw_clear(int lines)
+draw_clear(size_t lines)
 {
-	int i;
-
-	for (i = 0; i < lines + 1; i++)
+	for (size_t i = 0; i < lines + 1; i++)
 		fputs("\r\033[K\n", stderr);
-	fprintf(stderr, "\033[%dA", lines + 1);
+	fprintf(stderr, "\033[%ldA", lines + 1);
 }
 
 
@@ -376,7 +424,6 @@ int
 main(int argc, char *argv[])
 {
 	int i, exit_code, tty_fd = open("/dev/tty", O_RDWR);
-
 
 	/* command line arguments */
 	for (i = 1; i < argc; i++) {
