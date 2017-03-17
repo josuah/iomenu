@@ -73,11 +73,13 @@ void
 read_lines(void)
 {
 	extern struct line **linev;
+	extern size_t linec, matching;
 
 	char s[BUFSIZ];
 	size_t size = 1 << 4;
 
-	linev = malloc(sizeof(struct line *) * size);
+	if (!(linev = malloc(sizeof(struct line *) * size)))
+		die("malloc");
 	linev[0] = NULL;
 
 	/* read the file into an array of lines */
@@ -95,10 +97,13 @@ read_lines(void)
 				die("realloc");
 		}
 
-		linev[linec] = malloc(sizeof(struct line));
-		linev[linec]->match = 1;
-		linev[linec]->text = malloc(len);
+		if (!(linev[linec] = malloc(sizeof(struct line))))
+			die("malloc");
+		if (!(linev[linec]->text = malloc(len)))
+			die("malloc");
 		strcpy(linev[linec]->text, s);
+
+		linev[linec]->match = 1;
 	}
 }
 
@@ -202,11 +207,13 @@ draw_column(size_t pos, size_t col, size_t cols)
 	fputs(pos == current ? "\033[30;47m " : " ", stderr);
 
 	for (size_t i = 0; col < cols ;) {
-		size_t len = mblen(linev[pos]->text + i, BUFSIZ - i);
+		int len = mblen(linev[pos]->text + i, BUFSIZ - i);
 
-		if (len == 0) {
+		if (len < 0) {
 			i++;
 			continue;
+		} else if (len == 0) {
+			break;
 		}
 
 		col += linev[pos]->text[i] = '\t' ? pos + 1 % 8 : 1;
