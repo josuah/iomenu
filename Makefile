@@ -1,4 +1,4 @@
-CFLAGS    = -std=c99 -Wpedantic -Wall -Wextra -g -static -O0
+CFLAGS    = -std=c99 -Wpedantic -Wall -Wextra -g # -static 
 OBJ       = ${SRC:.c=.o}
 
 all: clean iomenu

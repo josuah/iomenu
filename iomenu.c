@@ -144,7 +144,7 @@ filter_lines(void)
 int
 matching_prev(int pos)
 {
-	for (size_t i = pos - 1; i > 0; i--)
+	for (int i = pos - 1; i >= 0; i--)
 		if (linev[i]->match)
 			return i;
 	return pos;
@@ -326,11 +326,6 @@ input_key(FILE *tty_fp)
 
 	char key = fgetc(tty_fp);
 
-	if (key == '\n') {
-		print_selection();
-		return EXIT_SUCCESS;
-	}
-
 	switch (key) {
 
 	case CONTROL('C'):
@@ -409,7 +404,7 @@ input_get(int tty_fd)
 void
 usage(void)
 {
-	fputs("usage: iomenu [-n] [-p prompt] [-l lines]\n", stderr);
+	fputs("usage: iomenu [-l lines] [-p prompt]\n", stderr);
 
 	exit(EXIT_FAILURE);
 }
@@ -420,19 +415,18 @@ main(int argc, char *argv[])
 {
 	int i, exit_code, tty_fd = open("/dev/tty", O_RDWR);
 
-	/* command line arguments */
 	for (i = 1; i < argc; i++) {
 		if (argv[i][0] != '-' || strlen(argv[i]) != 2)
 			usage();
 
 		switch (argv[i][1]) {
 		case 'l':
-			if (sscanf(argv[++i], "%d", &opt_lines) <= 0)
-				die("wrong number format after -l");
+			if (++i >= argc || sscanf(argv[i], "%d", &opt_lines) <= 0)
+				usage();
 			break;
 		case 'p':
 			if (++i >= argc)
-				die("missing string after -p");
+				usage();
 			opt_prompt = argv[i];
 			break;
 		default:
@@ -440,18 +434,12 @@ main(int argc, char *argv[])
 		}
 	}
 
-	/* command line arguments */
 	read_lines();
 
-	/* set the interface */
 	print_screen(tty_fd);
-
-	/* listen and interact to input */
 	exit_code = input_get(tty_fd);
 
 	print_clear(opt_lines);
-
-	/* close files descriptors and pointers, and free memory */
 	close(tty_fd);
 	free_linev(linev);
 
