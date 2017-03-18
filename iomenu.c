@@ -166,16 +166,14 @@ print_string(char *str, size_t limit, int current)
 void
 print_lines(size_t count, size_t cols)
 {
-	size_t printed = 0;
+	size_t printed = 0, i = current / count * count;
 
-	offset = current / count * count;
-
-	for (size_t i = offset; i < count && i < matchc; i++) {
+	for (; printed < count && i < matchc; printed++, i++) {
 		fputc('\n', stderr);
 		print_string(matchv[i], cols, i == current);
 	}
 
-	while (printed++ < count)
+	while (printed++ <= count)
 		fputs("\n\033[K", stderr);
 }
 
@@ -218,7 +216,7 @@ print_screen(int tty_fd)
 
 	if (opt_lines) {
 		print_lines(count, w.ws_col);
-		fprintf(stderr, "\033[%ldA", count);
+		fprintf(stderr, "\033[%ldA", count + 1);
 	} else {
 		fputs("\033[30C", stderr);
 		print_columns(w.ws_col);
@@ -316,7 +314,7 @@ input_key(FILE *tty_fp)
 		break;
 
 	case CONTROL('N'):
-		current += current <= matchc - 1 ? 1 : 0;
+		current += current < matchc - 1 ? 1 : 0;
 		break;
 
 	case CONTROL('P'):
