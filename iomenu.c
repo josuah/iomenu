@@ -18,8 +18,8 @@
 
 
 struct line {
-	char *text;  /* sent as output and matched by input */
-	int   match;   /* whether it matches linev's input */
+	char text[BUFSIZ];
+	int  match;
 };
 
 
@@ -33,10 +33,8 @@ char         *opt_prompt = "";
 void
 free_linev(struct line **linev)
 {
-	for (; linec > 0; linec--) {
-		free(linev[linec - 1]->text);
+	for (; linec > 0; linec--)
 		free(linev[linec - 1]);
-	}
 
 	free(linev);
 }
@@ -75,19 +73,19 @@ read_lines(void)
 	extern struct line **linev;
 	extern size_t linec, matching;
 
-	char s[BUFSIZ];
-	size_t size = 1 << 4;
+	char buffer[BUFSIZ];
+	size_t size = 1 << 6;
 
 	if (!(linev = malloc(sizeof(struct line *) * size)))
 		die("malloc");
 	linev[0] = NULL;
 
 	/* read the file into an array of lines */
-	for (; fgets(s, BUFSIZ, stdin); linec++, matching++) {
-		size_t len = strlen(s);
+	for (; fgets(buffer, sizeof buffer, stdin); linec++, matching++) {
+		size_t len = strlen(buffer);
 
-		if (len > 0 && s[len - 1] == '\n')
-			s[len - 1] = '\0';
+		if (len > 0 && buffer[len - 1] == '\n')
+			buffer[len - 1] = '\0';
 
 		if (linec > size) {
 			size *= 2;
@@ -99,17 +97,15 @@ read_lines(void)
 
 		if (!(linev[linec] = malloc(sizeof(struct line))))
 			die("malloc");
-		if (!(linev[linec]->text = malloc(len)))
-			die("malloc");
-		strcpy(linev[linec]->text, s);
 
+		strcpy(linev[linec]->text, buffer);
 		linev[linec]->match = 1;
 	}
 }
 
 
 int
-line_matches(struct line *line, char **tokv, size_t tokc)
+match_line(struct line *line, char **tokv, size_t tokc)
 {
 	for (size_t i = 0; i < tokc; i++)
 		if (strstr(line->text, tokv[i]) == NULL)
@@ -119,20 +115,16 @@ line_matches(struct line *line, char **tokv, size_t tokc)
 }
 
 
-/*
- * If inc is 1, it will only check already matching lines.
- * If inc is 0, it will only check non-matching lines.
- */
 void
-filter_lines(int inc)
+filter_lines(void)
 {
 	char   **tokv = NULL;
-	char    *s, buf[sizeof(input)];
+	char    *s, buffer[sizeof(input)];
 	size_t   n = 0, tokc = 0;
 
 	/* tokenize input from space characters, this comes from dmenu */
-	strcpy(buf, input);
-	for (s = strtok(buf, " "); s; s = strtok(NULL, " "), tokc++) {
+	strcpy(buffer, input);
+	for (s = strtok(buffer, " "); s; s = strtok(NULL, " "), tokc++) {
 
 		if (tokc >= n) {
 			tokv = realloc(tokv, ++n * sizeof(*tokv));
@@ -144,12 +136,8 @@ filter_lines(int inc)
 		tokv[tokc] = s;
 	}
 
-	/* match lines */
-	matching = 0;
-	for (size_t i = 0; i < linec; i++)
-		/* if (!(inc ^ linev[i]->match)) */
-			matching += linev[i]->match =
-				line_matches(linev[i], tokv, tokc);
+	for (size_t i = 0, matching = 0; i < linec; i++)
+		matching += linev[i]->match = match_line(linev[i], tokv, tokc);
 }
 
 
@@ -175,7 +163,7 @@ matching_next(size_t pos)
 
 
 void
-draw_line(size_t pos, const size_t cols)
+print_line(size_t pos, const size_t cols)
 {
 	fprintf(stderr, pos == current ?
 		"\n\033[30;47m\033[K%s\033[m" : "\n\033[K%s",
@@ -185,13 +173,13 @@ draw_line(size_t pos, const size_t cols)
 
 
 void
-draw_lines(size_t count, size_t cols)
+print_lines(size_t count, size_t cols)
 {
 	size_t printed = 0;
 
 	for (size_t i = offset; printed < count && i < linec; i++) {
 		if (linev[i]->match) {
-			draw_line(i, cols);
+			print_line(i, cols);
 			printed++;
 		}
 	}
@@ -202,7 +190,7 @@ draw_lines(size_t count, size_t cols)
 
 
 int
-draw_column(size_t pos, size_t col, size_t cols)
+print_column(size_t pos, size_t col, size_t cols)
 {
 	fputs(pos == current ? "\033[30;47m " : " ", stderr);
 
@@ -229,17 +217,17 @@ draw_column(size_t pos, size_t col, size_t cols)
 
 
 void
-draw_columns(size_t cols)
+print_columns(size_t cols)
 {
 	size_t col = 20;
 
 	for (size_t i = offset; col < cols; i++)
-		col = draw_column(i, col, cols);
+		col = print_column(i, col, cols);
 }
 
 
 void
-draw_prompt(size_t cols)
+print_prompt(size_t cols)
 {
 	size_t limit = opt_lines ? cols : 20;
 
@@ -252,7 +240,7 @@ draw_prompt(size_t cols)
 
 
 void
-draw_screen(int tty_fd)
+print_screen(int tty_fd)
 {
 	struct winsize w;
 	size_t count;
@@ -263,18 +251,18 @@ draw_screen(int tty_fd)
 	count = MIN(opt_lines, w.ws_row - 2);
 
 	if (opt_lines) {
-		draw_lines(count, w.ws_col);
+		print_lines(count, w.ws_col);
 		fprintf(stderr, "\033[%ldA", count);
 	} else {
-		draw_columns(w.ws_col);
+		print_columns(w.ws_col);
 	}
 
-	draw_prompt(w.ws_col);
+	print_prompt(w.ws_col);
 }
 
 
 void
-draw_clear(size_t lines)
+print_clear(size_t lines)
 {
 	for (size_t i = 0; i < lines + 1; i++)
 		fputs("\r\033[K\n", stderr);
@@ -306,9 +294,9 @@ add_character(char key)
 		input[len + 1] = '\0';
 	}
 
-	filter_lines(1);
+	filter_lines();
 
-	current = linev[0]->match ? 0 : matching_next(0);
+	current = linec == 0 || linev[0]->match ? 0 : matching_next(0);
 }
 
 
@@ -316,15 +304,14 @@ add_character(char key)
  * Send the selection to stdout.
  */
 void
-print_selection(int return_input)
+print_selection(void)
 {
 	fputs("\r\033[K", stderr);
 
-	if (return_input || !matching) {
-		puts(input);
-
-	} else if (matching > 0) {
+	if (matching > 0) {
 		puts(linev[current]->text);
+	} else {
+		puts(input);
 	}
 }
 
@@ -340,32 +327,32 @@ input_key(FILE *tty_fp)
 	char key = fgetc(tty_fp);
 
 	if (key == '\n') {
-		print_selection(0);
+		print_selection();
 		return EXIT_SUCCESS;
 	}
 
 	switch (key) {
 
 	case CONTROL('C'):
-		draw_clear(opt_lines);
+		print_clear(opt_lines);
 		return EXIT_FAILURE;
 
 	case CONTROL('U'):
 		input[0] = '\0';
 		current = 0;
-		filter_lines(0);
+		filter_lines();
 		break;
 
 	case CONTROL('W'):
 		remove_word_input();
-		filter_lines(0);
+		filter_lines();
 		break;
 
 	case 127:
 	case CONTROL('H'):  /* backspace */
 		input[strlen(input) - 1] = '\0';
-		filter_lines(0);
-		current = linev[0]->match ? 0 : matching_next(0);
+		filter_lines();
+		current = linec == 0 || linev[0]->match ? 0 : matching_next(0);
 		break;
 
 	case CONTROL('N'):
@@ -377,13 +364,14 @@ input_key(FILE *tty_fp)
 		break;
 
 	case CONTROL('I'):  /* tab */
-		strcpy(input, linev[current]->text);
-		filter_lines(1);
+		if (linec > 0)
+			strcpy(input, linev[current]->text);
+		filter_lines();
 		break;
 
 	case CONTROL('J'):
 	case CONTROL('M'):  /* enter */
-		print_selection(0);
+		print_selection();
 		return EXIT_SUCCESS;
 
 	default:
@@ -407,7 +395,7 @@ input_get(int tty_fd)
 	input[0] = '\0';
 
 	while ((exit_code = input_key(tty_fp)) == CONTINUE)
-		draw_screen(tty_fd);
+		print_screen(tty_fd);
 
 	/* resets the terminal to the previous state. */
 	tcsetattr(tty_fd, TCSANOW, &termio_old);
@@ -456,12 +444,12 @@ main(int argc, char *argv[])
 	read_lines();
 
 	/* set the interface */
-	draw_screen(tty_fd);
+	print_screen(tty_fd);
 
 	/* listen and interact to input */
 	exit_code = input_get(tty_fd);
 
-	draw_clear(opt_lines);
+	print_clear(opt_lines);
 
 	/* close files descriptors and pointers, and free memory */
 	close(tty_fd);
