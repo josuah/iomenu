@@ -138,6 +138,8 @@ filter_lines(void)
 
 	for (size_t i = 0, matching = 0; i < linec; i++)
 		matching += linev[i]->match = match_line(linev[i], tokv, tokc);
+
+	free(tokv);
 }
 
 
@@ -192,6 +194,8 @@ print_lines(size_t count, size_t cols)
 {
 	size_t printed = 0;
 
+	offset = current / count * count;
+
 	for (size_t i = offset; printed < count && i < linec; i++) {
 		if (linev[i]->match) {
 			fputc('\n', stderr);
@@ -208,7 +212,7 @@ print_lines(size_t count, size_t cols)
 void
 print_columns(size_t cols)
 {
-	size_t col = 20;
+	size_t col = 30;
 
 	for (size_t i = offset; col < cols && i < linec; i++) {
 		if (linev[i]->match)
@@ -220,7 +224,7 @@ print_columns(size_t cols)
 void
 print_prompt(size_t cols)
 {
-	size_t limit = opt_lines ? cols : 20;
+	size_t limit = opt_lines ? cols : 30;
 
 	fputc('\r', stderr);
 	for (size_t i = 0; i < limit; i++)
@@ -247,7 +251,7 @@ print_screen(int tty_fd)
 		print_lines(count, w.ws_col);
 		fprintf(stderr, "\033[%ldA", count);
 	} else {
-		fputs("\033[20C", stderr);
+		fputs("\033[30C", stderr);
 		print_columns(w.ws_col);
 	}
 
