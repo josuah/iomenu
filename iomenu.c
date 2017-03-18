@@ -116,6 +116,8 @@ filter_lines(void)
 	char   **tokv = NULL, *s, buffer[sizeof (input)];
 	size_t   tokc = 0, n = 0;
 
+	current = offset = prev = next = 0;
+
 	/* tokenize input from space characters, this comes from dmenu */
 	strcpy(buffer, input);
 	for (s = strtok(buffer, " "); s; s = strtok(NULL, " "), tokc++) {
@@ -139,27 +141,13 @@ filter_lines(void)
 }
 
 
-size_t
-print_string(char *str, size_t cols, int current)
+void
+print_string(char *str, int current)
 {
-	size_t col = 1;
-
-	if (col >= cols)
-		return 0;
-
 	fputs(current   ? "\033[30;47m" : "", stderr);
 	fputs(opt_lines ? "\033[K " : " ", stderr);
-
-	fputs(str, stderr);
-
-	if (col < cols) {
-		fputc(' ', stderr);
-		col++;
-	}
-
-	fputs("\033[m", stderr);
-
-	return col;
+	fprintf(stderr, "%s \033[m", str);
+	fputs(" \033[m", stderr);
 }
 
 
@@ -171,7 +159,7 @@ print_lines(size_t count, size_t cols)
 
 	for (size_t i = offset; p < count && i < matchc; p++, i++) {
 		fputc('\n', stderr);
-		print_string(matchv[i], cols, i == current);
+		print_string(matchv[i], i == current);
 	}
 
 	while (p++ <= count)
@@ -191,6 +179,8 @@ update_pages(size_t pos, size_t cols)
 	for (next = pos, col = 0; next < matchc; next++)
 		if ((col += strlen(matchv[next]) + 2) > cols)
 			break;
+
+	next--;
 }
 
 
@@ -199,15 +189,19 @@ print_columns(size_t cols)
 {
 	if (current < offset) {
 		offset = prev;
-		update_pages(prev, cols - 30);
+		update_pages(offset, cols - 30 - 1);
 
 	} else if (current >= next) {
 		offset = next;
-		update_pages(current, cols - 30);
+		update_pages(offset, cols - 30 - 1);
 	}
 
 	for (size_t i = offset; i < next && i < matchc; i++)
-		print_string(matchv[i], cols - 30, i == current);
+		print_string(matchv[i], i == current);
+
+
+	if (next < matchc)
+		fprintf(stderr, "\033[%ldC>", cols);
 }
 
 
@@ -217,8 +211,10 @@ print_prompt(size_t cols)
 	size_t limit = opt_lines ? cols : 30;
 
 	fputc('\r', stderr);
-	for (size_t i = 0; i < limit; i++)
+	for (size_t i = 0; i < limit - 2; i++)
 		fputc(' ', stderr);
+
+	fputs(offset > 0 ? "< " : "  ", stderr);
 
 	fprintf(stderr, "\r%s %s", opt_prompt, input);
 }
@@ -269,6 +265,8 @@ remove_word_input()
 	len = strlen(input) - 1;
 	for (int i = len; i >= 0 && !isspace(input[i]); i--)
 		input[i] = '\0';
+
+	filter_lines();
 }
 
 
@@ -283,8 +281,6 @@ add_character(char key)
 	}
 
 	filter_lines();
-
-	current = 0;
 }
 
 
@@ -320,20 +316,17 @@ input_key(FILE *tty_fp)
 
 	case CONTROL('U'):
 		input[0] = '\0';
-		current = 0;
 		filter_lines();
 		break;
 
 	case CONTROL('W'):
 		remove_word_input();
-		filter_lines();
 		break;
 
 	case 127:
 	case CONTROL('H'):  /* backspace */
 		input[strlen(input) - 1] = '\0';
 		filter_lines();
-		current = 0;
 		break;
 
 	case CONTROL('N'):
