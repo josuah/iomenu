@@ -194,21 +194,8 @@ print_column(size_t pos, size_t col, size_t cols)
 {
 	fputs(pos == current ? "\033[30;47m " : " ", stderr);
 
-	for (size_t i = 0; col < cols ;) {
-		int len = mblen(linev[pos]->text + i, BUFSIZ - i);
-
-		if (len < 0) {
-			i++;
-			continue;
-		} else if (len == 0) {
-			break;
-		}
-
-		col += linev[pos]->text[i] = '\t' ? pos + 1 % 8 : 1;
-
-		for (; len > 0; len--, i++)
-			fputc(linev[pos]->text[i], stderr);
-	}
+	for (size_t i = 0; col + i < cols && linev[pos]->text[i]; i++)
+		fputc(linev[pos]->text[i], stderr);
 
 	fputs(pos == current ? " \033[m" : " ", stderr);
 
@@ -221,7 +208,7 @@ print_columns(size_t cols)
 {
 	size_t col = 20;
 
-	for (size_t i = offset; col < cols; i++)
+	for (size_t i = offset; col < cols && i < linec; i++)
 		col = print_column(i, col, cols);
 }
 
@@ -254,6 +241,7 @@ print_screen(int tty_fd)
 		print_lines(count, w.ws_col);
 		fprintf(stderr, "\033[%ldA", count);
 	} else {
+		fputs("\033[20C", stderr);
 		print_columns(w.ws_col);
 	}
 
