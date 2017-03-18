@@ -18,7 +18,8 @@
 
 
 char     input[BUFSIZ];
-size_t   current = 0, matchc = 0, linec = 0, offset = 0;
+size_t   current = 0, offset = 0, last = 0;
+size_t   linec = 0,      matchc = 0;
 char   **linev = NULL, **matchv = NULL;
 char    *opt_prompt = "";
 int      opt_lines = 0;
@@ -166,14 +167,15 @@ print_string(char *str, size_t limit, int current)
 void
 print_lines(size_t count, size_t cols)
 {
-	size_t printed = 0, i = current / count * count;
+	size_t p = 0;  /* amount of lines printed */
+	offset = current / count * count;
 
-	for (; printed < count && i < matchc; printed++, i++) {
+	for (size_t i = offset; p < count && i < matchc; p++, i++) {
 		fputc('\n', stderr);
 		print_string(matchv[i], cols, i == current);
 	}
 
-	while (printed++ <= count)
+	while (p++ <= count)
 		fputs("\n\033[K", stderr);
 }
 
