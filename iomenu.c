@@ -162,13 +162,28 @@ matching_next(size_t pos)
 }
 
 
-void
-print_line(size_t pos, const size_t cols)
+size_t
+print_string(char *str, size_t limit, int current)
 {
-	fprintf(stderr, pos == current ?
-		"\n\033[30;47m\033[K%s\033[m" : "\n\033[K%s",
-		linev[pos]->text
-	);
+	size_t i, col = 1;
+
+	if (col >= limit)
+		return 0;
+
+	fputs(current  ? "\033[30;47m" : "", stderr);
+	fputs(opt_lines ? "\033[K " : " ", stderr);
+
+	for (i = 0; str[i] && col < limit; i++, col++)
+		fputc(str[i], stderr);
+
+	if (col < limit) {
+		fputc(' ', stderr);
+		col++;
+	}
+
+	fputs("\033[m", stderr);
+
+	return col;
 }
 
 
@@ -179,7 +194,8 @@ print_lines(size_t count, size_t cols)
 
 	for (size_t i = offset; printed < count && i < linec; i++) {
 		if (linev[i]->match) {
-			print_line(i, cols);
+			fputc('\n', stderr);
+			print_string(linev[i]->text, cols, i == current);
 			printed++;
 		}
 	}
@@ -189,27 +205,15 @@ print_lines(size_t count, size_t cols)
 }
 
 
-int
-print_column(size_t pos, size_t col, size_t cols)
-{
-	fputs(pos == current ? "\033[30;47m " : " ", stderr);
-
-	for (size_t i = 0; col + i < cols && linev[pos]->text[i]; i++)
-		fputc(linev[pos]->text[i], stderr);
-
-	fputs(pos == current ? " \033[m" : " ", stderr);
-
-	return col;
-}
-
-
 void
 print_columns(size_t cols)
 {
 	size_t col = 20;
 
-	for (size_t i = offset; col < cols && i < linec; i++)
-		col = print_column(i, col, cols);
+	for (size_t i = offset; col < cols && i < linec; i++) {
+		if (linev[i]->match)
+			col += print_string(linev[i]->text, cols - col, i == current);
+	}
 }
 
 
@@ -222,7 +226,7 @@ print_prompt(size_t cols)
 	for (size_t i = 0; i < limit; i++)
 		fputc(' ', stderr);
 
-	fprintf(stderr, "\r\033[1m%s%s\033[m", opt_prompt, input);
+	fprintf(stderr, "\r%s %s", opt_prompt, input);
 }
 
 
@@ -236,6 +240,8 @@ print_screen(int tty_fd)
 		die("could not get terminal size");
 
 	count = MIN(opt_lines, w.ws_row - 2);
+
+	fputs("\r\033[K", stderr);
 
 	if (opt_lines) {
 		print_lines(count, w.ws_col);
