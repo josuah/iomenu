@@ -17,26 +17,20 @@
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 
-struct line {
-	char text[BUFSIZ];
-	int  match;
-};
-
-
-char          input[BUFSIZ];
-size_t        current = 0, matching = 0, linec = 0, offset = 0;
-struct line **linev = NULL;
-int           opt_lines = 0;
-char         *opt_prompt = "";
+char     input[BUFSIZ];
+size_t   current = 0, matchc = 0, linec = 0, offset = 0;
+char   **linev = NULL, **matchv = NULL;
+char    *opt_prompt = "";
+int      opt_lines = 0;
 
 
 void
-free_linev(struct line **linev)
+free_v(char **v, size_t c)
 {
-	for (; linec > 0; linec--)
-		free(linev[linec - 1]);
+	for (; c > 0; c--)
+		free(v[c - 1]);
 
-	free(linev);
+	free(v);
 }
 
 
@@ -73,12 +67,15 @@ read_lines(void)
 	char buffer[BUFSIZ];
 	size_t size = 1 << 6;
 
-	if (!(linev = malloc(sizeof(struct line *) * size)))
+	linev  = malloc(sizeof (char **) * size);
+	matchv = malloc(sizeof (char **) * size);
+	if (linev == NULL || matchv == NULL)
 		die("malloc");
-	linev[0] = NULL;
+
+	linev[0] = matchv[0] = NULL;
 
 	/* read the file into an array of lines */
-	for (; fgets(buffer, sizeof buffer, stdin); linec++, matching++) {
+	for (; fgets(buffer, sizeof buffer, stdin); linec++, matchc++) {
 		size_t len = strlen(buffer);
 
 		if (len > 0 && buffer[len - 1] == '\n')
@@ -86,26 +83,26 @@ read_lines(void)
 
 		if (linec >= size) {
 			size *= 2;
-			linev = realloc(linev, sizeof(struct line *) * size);
-
-			if (linev == NULL)
+			linev  = realloc(linev,  sizeof (char **) * size);
+			matchv = realloc(matchv, sizeof (char **) * size);
+			if (linev == NULL || matchv == NULL)
 				die("realloc");
 		}
 
-		if (!(linev[linec] = malloc(sizeof(struct line))))
+		linev[linec] = matchv[matchc] = malloc(len);
+		if (linev[linec] == NULL)
 			die("malloc");
 
-		strcpy(linev[linec]->text, buffer);
-		linev[linec]->match = 1;
+		strcpy(linev[linec], buffer);
 	}
 }
 
 
 int
-match_line(struct line *line, char **tokv, size_t tokc)
+match_line(char *line, char **tokv, size_t tokc)
 {
 	for (size_t i = 0; i < tokc; i++)
-		if (strstr(line->text, tokv[i]) == NULL)
+		if (strstr(line, tokv[i]) == NULL)
 			return 0;
 
 	return 1;
@@ -115,16 +112,15 @@ match_line(struct line *line, char **tokv, size_t tokc)
 void
 filter_lines(void)
 {
-	char   **tokv = NULL;
-	char    *s, buffer[sizeof(input)];
-	size_t   n = 0, tokc = 0;
+	char   **tokv = NULL, *s, buffer[sizeof (input)];
+	size_t   tokc = 0, n = 0;
 
 	/* tokenize input from space characters, this comes from dmenu */
 	strcpy(buffer, input);
 	for (s = strtok(buffer, " "); s; s = strtok(NULL, " "), tokc++) {
 
 		if (tokc >= n) {
-			tokv = realloc(tokv, ++n * sizeof(*tokv));
+			tokv = realloc(tokv, ++n * sizeof (*tokv));
 
 			if (tokv == NULL)
 				die("realloc");
@@ -133,32 +129,12 @@ filter_lines(void)
 		tokv[tokc] = s;
 	}
 
-	matching = 0;
+	matchc = 0;
 	for (size_t i = 0; i < linec; i++)
-		matching += linev[i]->match = match_line(linev[i], tokv, tokc);
+		if (match_line(linev[i], tokv, tokc))
+			matchv[matchc++] = linev[i];
 
 	free(tokv);
-}
-
-
-int
-matching_prev(int pos)
-{
-	for (int i = pos - 1; i >= 0; i--)
-		if (linev[i]->match)
-			return i;
-	return pos;
-}
-
-
-int
-matching_next(size_t pos)
-{
-	for (size_t i = pos + 1; i < linec; i++)
-		if (linev[i]->match)
-			return i;
-
-	return pos;
 }
 
 
@@ -194,12 +170,9 @@ print_lines(size_t count, size_t cols)
 
 	offset = current / count * count;
 
-	for (size_t i = offset; printed < count && i < linec; i++) {
-		if (linev[i]->match) {
-			fputc('\n', stderr);
-			print_string(linev[i]->text, cols, i == current);
-			printed++;
-		}
+	for (size_t i = offset; i < count && i < matchc; i++) {
+		fputc('\n', stderr);
+		print_string(matchv[i], cols, i == current);
 	}
 
 	while (printed++ < count)
@@ -212,10 +185,8 @@ print_columns(size_t cols)
 {
 	size_t col = 30;
 
-	for (size_t i = offset; col < cols && i < linec; i++) {
-		if (linev[i]->match)
-			col += print_string(linev[i]->text, cols - col, i == current);
-	}
+	for (size_t i = offset; col < cols && i < matchc; i++)
+		col += print_string(matchv[i], cols - col, i == current);
 }
 
 
@@ -292,7 +263,7 @@ add_character(char key)
 
 	filter_lines();
 
-	current = linec == 0 || linev[0]->match ? 0 : matching_next(0);
+	current = 0;
 }
 
 
@@ -304,8 +275,8 @@ print_selection(void)
 {
 	fputs("\r\033[K", stderr);
 
-	if (matching > 0) {
-		puts(linev[current]->text);
+	if (matchc > 0) {
+		puts(matchv[current]);
 	} else {
 		puts(input);
 	}
@@ -341,20 +312,20 @@ input_key(FILE *tty_fp)
 	case CONTROL('H'):  /* backspace */
 		input[strlen(input) - 1] = '\0';
 		filter_lines();
-		current = linec == 0 || linev[0]->match ? 0 : matching_next(0);
+		current = 0;
 		break;
 
 	case CONTROL('N'):
-		current = matching_next(current);
+		current += current <= matchc - 1 ? 1 : 0;
 		break;
 
 	case CONTROL('P'):
-		current = matching_prev(current);
+		current -= current > 0 ? 1 : 0;
 		break;
 
 	case CONTROL('I'):  /* tab */
 		if (linec > 0)
-			strcpy(input, linev[current]->text);
+			strcpy(input, matchv[current]);
 		filter_lines();
 		break;
 
@@ -435,7 +406,8 @@ main(int argc, char *argv[])
 
 	print_clear(opt_lines);
 	close(tty_fd);
-	free_linev(linev);
+	free_v(linev, linec);
+	free(matchv);
 
 	return exit_code;
 }
