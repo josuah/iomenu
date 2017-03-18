@@ -87,7 +87,7 @@ read_lines(void)
 		if (len > 0 && buffer[len - 1] == '\n')
 			buffer[len - 1] = '\0';
 
-		if (linec > size) {
+		if (linec >= size) {
 			size *= 2;
 			linev = realloc(linev, sizeof(struct line *) * size);
 
