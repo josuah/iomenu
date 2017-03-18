@@ -18,7 +18,7 @@
 
 
 char     input[BUFSIZ];
-size_t   current = 0, offset = 0, last = 0;
+size_t   current = 0, offset = 0, prev = 0, next = 0;
 size_t   linec = 0,      matchc = 0;
 char   **linev = NULL, **matchv = NULL;
 char    *opt_prompt = "";
@@ -140,20 +140,19 @@ filter_lines(void)
 
 
 size_t
-print_string(char *str, size_t limit, int current)
+print_string(char *str, size_t cols, int current)
 {
-	size_t i, col = 1;
+	size_t col = 1;
 
-	if (col >= limit)
+	if (col >= cols)
 		return 0;
 
-	fputs(current  ? "\033[30;47m" : "", stderr);
+	fputs(current   ? "\033[30;47m" : "", stderr);
 	fputs(opt_lines ? "\033[K " : " ", stderr);
 
-	for (i = 0; str[i] && col < limit; i++, col++)
-		fputc(str[i], stderr);
+	fputs(str, stderr);
 
-	if (col < limit) {
+	if (col < cols) {
 		fputc(' ', stderr);
 		col++;
 	}
@@ -181,12 +180,34 @@ print_lines(size_t count, size_t cols)
 
 
 void
+update_pages(size_t pos, size_t cols)
+{
+	size_t col;
+
+	for (prev = pos, col = 0; prev > 0; prev--)
+		if ((col += strlen(matchv[prev]) + 2) > cols)
+			break;
+
+	for (next = pos, col = 0; next < matchc; next++)
+		if ((col += strlen(matchv[next]) + 2) > cols)
+			break;
+}
+
+
+void
 print_columns(size_t cols)
 {
-	size_t col = 30;
+	if (current < offset) {
+		offset = prev;
+		update_pages(prev, cols - 30);
 
-	for (size_t i = offset; col < cols && i < matchc; i++)
-		col += print_string(matchv[i], cols - col, i == current);
+	} else if (current >= next) {
+		offset = next;
+		update_pages(current, cols - 30);
+	}
+
+	for (size_t i = offset; i < next && i < matchc; i++)
+		print_string(matchv[i], cols - 30, i == current);
 }
 
 
