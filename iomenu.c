@@ -70,9 +70,6 @@ set_terminal(int tty_fd)
 void
 read_lines(void)
 {
-	extern struct line **linev;
-	extern size_t linec, matching;
-
 	char buffer[BUFSIZ];
 	size_t size = 1 << 6;
 
@@ -136,7 +133,8 @@ filter_lines(void)
 		tokv[tokc] = s;
 	}
 
-	for (size_t i = 0, matching = 0; i < linec; i++)
+	matching = 0;
+	for (size_t i = 0; i < linec; i++)
 		matching += linev[i]->match = match_line(linev[i], tokv, tokc);
 
 	free(tokv);
@@ -320,8 +318,6 @@ print_selection(void)
 int
 input_key(FILE *tty_fp)
 {
-	extern char input[];
-
 	char key = fgetc(tty_fp);
 
 	switch (key) {
