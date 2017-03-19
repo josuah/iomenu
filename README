@@ -1,90 +1,80 @@
-iomenu - Filter lines from stdin with an interactive menu
+IOMENU(1)                   General Commands Manual                  IOMENU(1)
 
- .  _  __   _  __
- | (_) ||| (/_ | | |_|
+NAME
+     iomenu – interactive selection menu
 
-________________________________________________________________________________
+SYNOPSIS
+     iomenu [-l lines]
 
-	iomenu is a terminal tool to interactively select lines from stdin, and
-	print them out to the standard output.
+DESCRIPTION
+     iomenu is an interactive filtering and selection tool for the terminal.
 
-	You can use scripts made for dmenu [1], as iomenu mostly the same way.
+     It reads lines from standard input, and prompt for a selection.  The
+     selected line(s) is(are) printed to standard output.
 
-	Thanks to the authors of dmenu [1], sandy [2], vis-menu[3], pep[4], ...
-	that taught me C by writing some.
+     -l lines          If lines is 0 or if -l is not set, the items are
+                       displayed in an horizontal list.  Otherwise, in a
+                       vertical list of at most lines lines.
 
+   Selection control
+     An active selection is highlighted, and can be controlled with
+     keybindings.
 
-Getting started
-________________________________________________________________________________
+     ^P, ^N           Move selection to the previous/next item.
 
-	You can install iomenu by running:
-	
-	"""
-	make install
-	"""
-	
-	You can optionnaly set a "PREFIX" variable to set the path to
-	install to:
-	
-	"""
-	make PREFIX="$HOME/bin" install
-	"""
+     ^M, ^J, Enter    Print the selection to the standard output, and exit 0.
 
-	All you need to build it is a C compiler:  It is plain C89 source
-	code without external dependencies.
+     ^Y               Print the selection to the standard output but continue
+                      running.
 
-	All usage details are written in the man page, "iomenu.1".
+   Input handling
+     As printable keys are entered, the selection is filtered to match every
+     word from the input.
 
+     ^H, Bakcspace    Remove last character from current input.
 
-Examples
-________________________________________________________________________________
+     ^W               Remove last word from current input.
 
+     ^U               Remove the whole input string.
 
-Open a bookmark from a list in a text file
+     ^I, Tab          Fill the input with current selection.
 
-	"""
-	iomenu < bookmarks-urls.txt | xargs firefox
-	"""
+EXIT STATUS
+     The iomenu utility exits 0 on success, and >0 if an error occurs.
 
+EXAMPLES
+     Open a bookmark from a list in a text file:
 
-Go to a subdirectory
+       iomenu < bookmarks-urls.txt | xargs firefox
 
-	"""
-	cd "$(find . -type d | iomenu)"
-	"""
+     Go to a subdirectory:
 
+       cd "$(find . -type d | iomenu)"
 
-Edit a file located in ~
+     Edit a file located in HOME:
 
-	"""
-	$EDITOR "$(find -type f | iomenu)"
-	"""
+       EDITOR "$(find "$HOME" -type f | iomenu -l 255)"
 
+     Play an audio file:
 
-Play an audio file
+       mplayer "$(find ~/Music | iomenu)"
 
-	"""
-	mplayer "$(find ~/Music | iomenu)"
-	"""
+     Select a background job to attach to:
 
+       fg "%$(jobs | iomenu | cut -c 2)"
 
-Select a background job to attach to
+     Filter "ps" output and print a process ID
 
-	"""
-	fg "%$(jobs | iomenu | cut -c 2)"
-	"""
+       ps ax | tail -n +2 | iomenu -l 255 | sed -r 's/ *([0-9]*).*/1/'
 
+SEE ALSO
+     dmenu(1), slmenu(1), vis-menu(1)
 
-Filter "ps" output and print a process ID
+BUGS
+     iomenu currently only support ASCII characters.
 
-	"""
-	{ printf '#'; ps ax; } | iomenu -s '#' | sed -r 's/ *([0-9]*).*/\1/'
-	"""
+AUTORS
+     iomenu was written from scratch by Josuah Demangeon <mail@josuah.net>
+     with the help of dmenu(1) and vis-menu(1) as models.
 
-
-________________________________________________________________________________
-
-1	http://git.suckless.org/dmenu/tree/dmenu.c
-2	http://git.suckless.org/sandy/tree/sandy.c
-3	http://github.com/martanne/vis/blob/master/vis-menu.c
-4	http://github.com/charles-l/pep/blob/master/pep.c
+Linux 4.9.11-1-ARCH             March 19, 2017             Linux 4.9.11-1-ARCH

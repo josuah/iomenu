@@ -26,7 +26,6 @@ static char   input[BUFSIZ], formatted[BUFSIZ * 8];
 static int    current = 0, offset = 0, prev = 0, next = 0;
 static int    linec = 0,      matchc = 0;
 static char **linev = NULL, **matchv = NULL;
-static char  *opt_p = "";
 static int    opt_l = 0;
 
 
@@ -243,7 +242,7 @@ print_screen(void)
 	}
 
 	format(input, opt_l || matchc == 0 ? ws.ws_col : OFFSET - 3);
-	fprintf(stderr, "\r%s %s", opt_p, formatted);
+	fprintf(stderr, "\r %s", formatted);
 }
 
 
@@ -409,7 +408,7 @@ input_get(void)
 static void
 usage(void)
 {
-	fputs("usage: iomenu [-l lines] [-p prompt]\n", stderr);
+	fputs("usage: iomenu [-l lines]\n", stderr);
 
 	exit(EXIT_FAILURE);
 }
@@ -428,11 +427,6 @@ main(int argc, char *argv[])
 		case 'l':
 			if (++i >= argc || sscanf(argv[i], "%d", &opt_l) <= 0)
 				usage();
-			break;
-		case 'p':
-			if (++i >= argc)
-				usage();
-			opt_p = argv[i];
 			break;
 		default:
 			usage();
