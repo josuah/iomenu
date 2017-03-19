@@ -9,15 +9,15 @@
 #include <sys/ioctl.h>
 
 
-#define OFFSET     5
-#define CONTINUE   2  /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
+#define OFFSET    30   /* in horizontal mode, amount of space kept for writing */
+#define CONTINUE  2    /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
 #define CONTROL(char) (char ^ 0x40)
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 
-static struct winsize winsize;
+static struct winsize ws;
 static struct termios termios;
 FILE *tty_fp = NULL;
 int   tty_fd;
@@ -26,8 +26,8 @@ static char   input[BUFSIZ], formatted[BUFSIZ * 8];
 static int    current = 0, offset = 0, prev = 0, next = 0;
 static int    linec = 0,      matchc = 0;
 static char **linev = NULL, **matchv = NULL;
-static char  *opt_prompt = "";
-static int    opt_lines = 0;
+static char  *opt_p = "";
+static int    opt_l = 0;
 
 
 static void
@@ -132,35 +132,33 @@ screen_width(char *str)
 }
 
 
-int
-format_string(char *dest, char *src, int cols)
+static char *
+format(char *str, int cols)
 {
 	int j = 0;
 
-	for (int i = 0; src[i] && j < cols; i++) {
+	for (int i = 0; str[i] && j < cols; i++) {
 
-		if (src[i] == '\t') {
+		if (str[i] == '\t') {
 			for (int t = (j + 7) % 8 + 1; t > 0 && j < cols; t--)
-				dest[j++] = ' ';
+				formatted[j++] = ' ';
 		} else {
-			dest[j++] = src[i];
+			formatted[j++] = str[i];
 		}
 	}
 
-	dest[j] = '\0';
+	formatted[j] = '\0';
 
-	return j;
+	return formatted;
 }
 
 
 static void
 print_string(char *str, int current)
 {
-	format_string(formatted, str, winsize.ws_col - 2);
-
 	fputs(current   ? "\033[30;47m" : "", stderr);
-	fputs(opt_lines ? "\033[K " : " ", stderr);
-	fprintf(stderr, "%s \033[m", formatted);
+	fputs(opt_l ? "\033[K " : " ", stderr);
+	fprintf(stderr, "%s \033[m", format(str, ws.ws_col - 2));
 }
 
 
@@ -206,11 +204,11 @@ print_columns(void)
 {
 	if (current < offset) {
 		next = offset;
-		offset = prev_page(offset, winsize.ws_col - 30 - 4);
+		offset = prev_page(offset, ws.ws_col - OFFSET - 4);
 
 	} else if (current >= next) {
 		offset = next;
-		next = next_page(offset, winsize.ws_col - 30 - 4);
+		next = next_page(offset, ws.ws_col - OFFSET - 4);
 	}
 
 	fputs(offset > 0 ? "< " : "  ", stderr);
@@ -219,7 +217,7 @@ print_columns(void)
 		print_string(matchv[i], i == current);
 
 	if (next < matchc)
-		fprintf(stderr, "\033[%dC>", winsize.ws_col - 30);
+		fprintf(stderr, "\033[%dC>", ws.ws_col - OFFSET);
 }
 
 
@@ -228,14 +226,14 @@ print_screen(void)
 {
 	int count;
 
-	if (ioctl(tty_fd, TIOCGWINSZ, &winsize) < 0)
+	if (ioctl(tty_fd, TIOCGWINSZ, &ws) < 0)
 		die("ioctl");
 
-	count = MIN(opt_lines, winsize.ws_row - 2);
+	count = MIN(opt_l, ws.ws_row - 2);
 
 	fputs("\r\033[K", stderr);
 
-	if (opt_lines) {
+	if (opt_l) {
 		print_lines(count);
 		fprintf(stderr, "\033[%dA", count + 1);
 
@@ -244,7 +242,8 @@ print_screen(void)
 		print_columns();
 	}
 
-	fprintf(stderr, "\r%s %s", opt_prompt, input);
+	format(input, opt_l || matchc == 0 ? ws.ws_col : OFFSET - 3);
+	fprintf(stderr, "\r%s %s", opt_p, formatted);
 }
 
 
@@ -318,19 +317,11 @@ add_character(char key)
 }
 
 
-/*
- * Send the selection to stdout.
- */
 static void
 print_selection(void)
 {
 	fputs("\r\033[K", stderr);
-
-	if (matchc > 0) {
-		puts(matchv[current]);
-	} else {
-		puts(input);
-	}
+	puts(matchc > 0 ? matchv[current] : input);
 }
 
 
@@ -345,7 +336,7 @@ input_key(void)
 	switch (key) {
 
 	case CONTROL('C'):
-		print_clear(opt_lines);
+		print_clear(opt_l);
 		return EXIT_FAILURE;
 
 	case CONTROL('U'):
@@ -435,13 +426,13 @@ main(int argc, char *argv[])
 
 		switch (argv[i][1]) {
 		case 'l':
-			if (++i >= argc || sscanf(argv[i], "%d", &opt_lines) <= 0)
+			if (++i >= argc || sscanf(argv[i], "%d", &opt_l) <= 0)
 				usage();
 			break;
 		case 'p':
 			if (++i >= argc)
 				usage();
-			opt_prompt = argv[i];
+			opt_p = argv[i];
 			break;
 		default:
 			usage();
@@ -457,7 +448,7 @@ main(int argc, char *argv[])
 	exit_code = input_get();
 
 	tcsetattr(tty_fd, TCSANOW, &termios);
-	print_clear(opt_lines);
+	print_clear(opt_l);
 	fclose(tty_fp);
 	 close(tty_fd);
 	free_all();
