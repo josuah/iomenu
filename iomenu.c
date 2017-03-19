@@ -137,11 +137,10 @@ print_lines(int count)
 static int
 prev_page(int pos, int cols)
 {
-	pos--;
+	pos -= pos > 0 ? 1 : 0;
 	for (int col = 0; pos > 0; pos--)
 		if ((col += strlen(matchv[pos]) + 2) > cols)
 			return pos + 1;
-
 	return pos;
 }
 
@@ -151,8 +150,7 @@ next_page(int pos, int cols)
 {
 	for (int col = 0; pos < matchc; pos++)
 		if ((col += strlen(matchv[pos]) + 2) > cols)
-			return pos - 1;
-
+			return pos;
 	return pos;
 }
 
@@ -162,13 +160,11 @@ print_columns(void)
 {
 	if (current < offset) {
 		next = offset;
-		offset = prev;
-		prev = prev_page(offset, winsize.ws_col - 30 - 1);
+		offset = prev_page(offset, winsize.ws_col - 30 - 4);
 
 	} else if (current >= next) {
-		prev = offset;
 		offset = next;
-		next = next_page(offset, winsize.ws_col - 30 - 1);
+		next = next_page(offset, winsize.ws_col - 30 - 4);
 	}
 
 	fputs(offset > 0 ? "< " : "  ", stderr);
@@ -178,19 +174,6 @@ print_columns(void)
 
 	if (next < matchc)
 		fprintf(stderr, "\033[%dC>", winsize.ws_col - 30);
-}
-
-
-static void
-print_prompt(void)
-{
-	int limit = opt_lines ? winsize.ws_col : 30 - 2;
-
-	fputc('\r', stderr);
-	for (int i = 0; i < limit; i++)
-		fputc(' ', stderr);
-
-	fprintf(stderr, "\r%s %s", opt_prompt, input);
 }
 
 
@@ -215,7 +198,7 @@ print_screen(int tty_fd)
 		print_columns();
 	}
 
-	print_prompt();
+	fprintf(stderr, "\r%s %s", opt_prompt, input);
 }
 
 
@@ -256,8 +239,6 @@ filter_lines(void)
 			matchv[matchc++] = linev[i];
 
 	free(tokv);
-
-	next = next_page(0, winsize.ws_col - 30 - 1);
 }
 
 
