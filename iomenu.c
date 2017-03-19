@@ -18,15 +18,15 @@
 
 
 char     input[BUFSIZ];
-size_t   current = 0, offset = 0, prev = 0, next = 0;
-size_t   linec = 0,      matchc = 0;
+int   current = 0, offset = 0, prev = 0, next = 0;
+int   linec = 0,      matchc = 0;
 char   **linev = NULL, **matchv = NULL;
 char    *opt_prompt = "";
 int      opt_lines = 0;
 
 
 void
-free_v(char **v, size_t c)
+free_v(char **v, int c)
 {
 	for (; c > 0; c--)
 		free(v[c - 1]);
@@ -53,7 +53,7 @@ set_terminal(int tty_fd)
 	if (tcgetattr(tty_fd, &termio_old) < 0)
 		die("Can not get terminal attributes with tcgetattr().");
 
-	termio_new          = termio_old;
+	termio_new = termio_old;
 	termio_new.c_lflag &= ~(ICANON | ECHO | IGNBRK);
 
 	tcsetattr(tty_fd, TCSANOW, &termio_new);
@@ -66,7 +66,7 @@ void
 read_lines(void)
 {
 	char buffer[BUFSIZ];
-	size_t size = 1 << 6;
+	int size = 1 << 6;
 
 	linev  = malloc(sizeof (char **) * size);
 	matchv = malloc(sizeof (char **) * size);
@@ -77,7 +77,7 @@ read_lines(void)
 
 	/* read the file into an array of lines */
 	for (; fgets(buffer, sizeof buffer, stdin); linec++, matchc++) {
-		size_t len = strlen(buffer);
+		int len = strlen(buffer);
 
 		if (len > 0 && buffer[len - 1] == '\n')
 			buffer[len - 1] = '\0';
@@ -100,9 +100,9 @@ read_lines(void)
 
 
 int
-match_line(char *line, char **tokv, size_t tokc)
+match_line(char *line, char **tokv, int tokc)
 {
-	for (size_t i = 0; i < tokc; i++)
+	for (int i = 0; i < tokc; i++)
 		if (strstr(line, tokv[i]) == NULL)
 			return 0;
 
@@ -114,7 +114,7 @@ void
 filter_lines(void)
 {
 	char   **tokv = NULL, *s, buffer[sizeof (input)];
-	size_t   tokc = 0, n = 0;
+	int   tokc = 0, n = 0;
 
 	current = offset = prev = next = 0;
 
@@ -133,7 +133,7 @@ filter_lines(void)
 	}
 
 	matchc = 0;
-	for (size_t i = 0; i < linec; i++)
+	for (int i = 0; i < linec; i++)
 		if (match_line(linev[i], tokv, tokc))
 			matchv[matchc++] = linev[i];
 
@@ -147,17 +147,16 @@ print_string(char *str, int current)
 	fputs(current   ? "\033[30;47m" : "", stderr);
 	fputs(opt_lines ? "\033[K " : " ", stderr);
 	fprintf(stderr, "%s \033[m", str);
-	fputs(" \033[m", stderr);
 }
 
 
 void
-print_lines(size_t count, size_t cols)
+print_lines(int count, int cols)
 {
-	size_t p = 0;  /* amount of lines printed */
+	int p = 0;  /* amount of lines printed */
 	offset = current / count * count;
 
-	for (size_t i = offset; p < count && i < matchc; p++, i++) {
+	for (int i = offset; p < count && i < matchc; p++, i++) {
 		fputc('\n', stderr);
 		print_string(matchv[i], i == current);
 	}
@@ -168,24 +167,25 @@ print_lines(size_t count, size_t cols)
 
 
 void
-update_pages(size_t pos, size_t cols)
+update_pages(int pos, int cols)
 {
-	size_t col;
+	int col;
 
 	for (prev = pos, col = 0; prev > 0; prev--)
 		if ((col += strlen(matchv[prev]) + 2) > cols)
 			break;
 
-	for (next = pos, col = 0; next < matchc; next++)
+	for (next = pos, col = 0; next <= matchc; next++)
 		if ((col += strlen(matchv[next]) + 2) > cols)
 			break;
+	next++;
 
 	next--;
 }
 
 
 void
-print_columns(size_t cols)
+print_columns(int cols)
 {
 	if (current < offset) {
 		offset = prev;
@@ -196,22 +196,22 @@ print_columns(size_t cols)
 		update_pages(offset, cols - 30 - 1);
 	}
 
-	for (size_t i = offset; i < next && i < matchc; i++)
+	for (int i = offset; i < next && i < matchc; i++)
 		print_string(matchv[i], i == current);
 
 
 	if (next < matchc)
-		fprintf(stderr, "\033[%ldC>", cols);
+		fprintf(stderr, "\033[%dC>", cols);
 }
 
 
 void
-print_prompt(size_t cols)
+print_prompt(int cols)
 {
-	size_t limit = opt_lines ? cols : 30;
+	int limit = opt_lines ? cols : 30;
 
 	fputc('\r', stderr);
-	for (size_t i = 0; i < limit - 2; i++)
+	for (int i = 0; i < limit - 2; i++)
 		fputc(' ', stderr);
 
 	fputs(offset > 0 ? "< " : "  ", stderr);
@@ -224,7 +224,7 @@ void
 print_screen(int tty_fd)
 {
 	struct winsize w;
-	size_t count;
+	int count;
 
 	if (ioctl(tty_fd, TIOCGWINSZ, &w) < 0)
 		die("could not get terminal size");
@@ -235,7 +235,7 @@ print_screen(int tty_fd)
 
 	if (opt_lines) {
 		print_lines(count, w.ws_col);
-		fprintf(stderr, "\033[%ldA", count + 1);
+		fprintf(stderr, "\033[%dA", count + 1);
 	} else {
 		fputs("\033[30C", stderr);
 		print_columns(w.ws_col);
@@ -246,18 +246,18 @@ print_screen(int tty_fd)
 
 
 void
-print_clear(size_t lines)
+print_clear(int lines)
 {
-	for (size_t i = 0; i < lines + 1; i++)
+	for (int i = 0; i < lines + 1; i++)
 		fputs("\r\033[K\n", stderr);
-	fprintf(stderr, "\033[%ldA", lines + 1);
+	fprintf(stderr, "\033[%dA", lines + 1);
 }
 
 
 void
 remove_word_input()
 {
-	size_t len = strlen(input) - 1;
+	int len = strlen(input) - 1;
 
 	for (int i = len; i >= 0 && isspace(input[i]); i--)
 		input[i] = '\0';
@@ -273,7 +273,7 @@ remove_word_input()
 void
 add_character(char key)
 {
-	size_t len = strlen(input);
+	int len = strlen(input);
 
 	if (isprint(key)) {
 		input[len]     = key;
