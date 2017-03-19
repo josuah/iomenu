@@ -19,6 +19,8 @@
 
 static struct winsize winsize;
 static struct termios termios;
+FILE *tty_fp = NULL;
+int   tty_fd;
 
 static char   input[BUFSIZ];
 static int    current = 0, offset = 0, prev = 0, next = 0;
@@ -29,35 +31,43 @@ static int    opt_lines = 0;
 
 
 static void
-free_v(char **v, int c)
+free_all(void)
 {
-	for (; c > 0; c--)
-		free(v[c - 1]);
-
-	free(v);
+	if (linev) {
+		for (; linec > 0; linec--)
+			free(linev[linec - 1]);
+		free(linev);
+	}
+	if (matchv)
+		free(matchv);
 }
 
 
 static void
 die(const char *s)
 {
-	/* tcsetattr(STDIN_FILENO, TCSANOW, &termio_old); */
-	fprintf(stderr, "%s\n", s);
+	tcsetattr(tty_fd, TCSANOW, &termios);
+	fclose(tty_fp);
+	 close(tty_fd);
+	free_all();
+	perror(s);
 	exit(EXIT_FAILURE);
 }
 
 
 static void
-set_terminal(int tty_fd)
+set_terminal(void)
 {
-	if (tcgetattr(tty_fd, &termios) < 0) {
+	struct termios new;
+
+	if (tcgetattr(tty_fd, &termios) < 0 || tcgetattr(tty_fd, &new) < 0) {
 		perror("tcgetattr");
 		exit(EXIT_FAILURE);
 	}
 
-	termios.c_lflag &= ~(ICANON | ECHO | IGNBRK);
+	new.c_lflag &= ~(ICANON | ECHO | IGNBRK);
 
-	tcsetattr(tty_fd, TCSANOW, &termios);
+	tcsetattr(tty_fd, TCSANOW, &new);
 }
 
 
@@ -178,7 +188,7 @@ print_columns(void)
 
 
 static void
-print_screen(int tty_fd)
+print_screen(void)
 {
 	int count;
 
@@ -292,7 +302,7 @@ print_selection(void)
  * Perform action associated with key
  */
 static int
-input_key(FILE *tty_fp)
+input_key(void)
 {
 	char key = fgetc(tty_fp);
 
@@ -348,21 +358,18 @@ input_key(FILE *tty_fp)
  * Listen for the user input and call the appropriate functions.
  */
 static int
-input_get(int tty_fd)
+input_get(void)
 {
-	FILE *tty_fp = fopen("/dev/tty", "r");
 	int   exit_code;
 
 	input[0] = '\0';
 
-	set_terminal(tty_fd);
+	set_terminal();
 
-	while ((exit_code = input_key(tty_fp)) == CONTINUE)
-		print_screen(tty_fd);
+	while ((exit_code = input_key()) == CONTINUE)
+		print_screen();
 
-	set_terminal(tty_fd);
-
-	fclose(tty_fp);
+	tcsetattr(tty_fd, TCSANOW, &termios);
 
 	return exit_code;
 }
@@ -380,9 +387,9 @@ usage(void)
 int
 main(int argc, char *argv[])
 {
-	int i, exit_code, tty_fd = open("/dev/tty", O_RDWR);
+	int exit_code;
 
-	for (i = 1; i < argc; i++) {
+	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] != '-' || strlen(argv[i]) != 2)
 			usage();
 
@@ -403,13 +410,17 @@ main(int argc, char *argv[])
 
 	read_lines();
 
-	print_screen(tty_fd);
-	exit_code = input_get(tty_fd);
+	tty_fp = fopen("/dev/tty", "r");
+	tty_fd =  open("/dev/tty", O_RDWR);
 
+	print_screen();
+	exit_code = input_get();
+
+	tcsetattr(tty_fd, TCSANOW, &termios);
 	print_clear(opt_lines);
-	close(tty_fd);
-	free_v(linev, linec);
-	free(matchv);
+	fclose(tty_fp);
+	 close(tty_fd);
+	free_all();
 
 	return exit_code;
 }
