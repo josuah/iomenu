@@ -17,15 +17,18 @@
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 
-char     input[BUFSIZ];
-int   current = 0, offset = 0, prev = 0, next = 0;
-int   linec = 0,      matchc = 0;
-char   **linev = NULL, **matchv = NULL;
-char    *opt_prompt = "";
-int      opt_lines = 0;
+static struct winsize winsize;
+static struct termios termios;
+
+static char   input[BUFSIZ];
+static int    current = 0, offset = 0, prev = 0, next = 0;
+static int    linec = 0,      matchc = 0;
+static char **linev = NULL, **matchv = NULL;
+static char  *opt_prompt = "";
+static int    opt_lines = 0;
 
 
-void
+static void
 free_v(char **v, int c)
 {
 	for (; c > 0; c--)
@@ -35,7 +38,7 @@ free_v(char **v, int c)
 }
 
 
-void
+static void
 die(const char *s)
 {
 	/* tcsetattr(STDIN_FILENO, TCSANOW, &termio_old); */
@@ -44,25 +47,21 @@ die(const char *s)
 }
 
 
-struct termios
+static void
 set_terminal(int tty_fd)
 {
-	struct termios termio_old;
-	struct termios termio_new;
+	if (tcgetattr(tty_fd, &termios) < 0) {
+		perror("tcgetattr");
+		exit(EXIT_FAILURE);
+	}
 
-	if (tcgetattr(tty_fd, &termio_old) < 0)
-		die("Can not get terminal attributes with tcgetattr().");
+	termios.c_lflag &= ~(ICANON | ECHO | IGNBRK);
 
-	termio_new = termio_old;
-	termio_new.c_lflag &= ~(ICANON | ECHO | IGNBRK);
-
-	tcsetattr(tty_fd, TCSANOW, &termio_new);
-
-	return termio_old;
+	tcsetattr(tty_fd, TCSANOW, &termios);
 }
 
 
-void
+static void
 read_lines(void)
 {
 	char buffer[BUFSIZ];
@@ -99,7 +98,7 @@ read_lines(void)
 }
 
 
-int
+static int
 match_line(char *line, char **tokv, int tokc)
 {
 	for (int i = 0; i < tokc; i++)
@@ -110,16 +109,135 @@ match_line(char *line, char **tokv, int tokc)
 }
 
 
-void
+static void
+print_string(char *str, int current)
+{
+	fputs(current   ? "\033[30;47m" : "", stderr);
+	fputs(opt_lines ? "\033[K " : " ", stderr);
+	fprintf(stderr, "%s \033[m", str);
+}
+
+
+static void
+print_lines(int count)
+{
+	int p = 0;  /* amount of lines printed */
+	offset = current / count * count;
+
+	for (int i = offset; p < count && i < matchc; p++, i++) {
+		fputc('\n', stderr);
+		print_string(matchv[i], i == current);
+	}
+
+	while (p++ <= count)
+		fputs("\n\033[K", stderr);
+}
+
+
+static int
+prev_page(int pos, int cols)
+{
+	pos--;
+	for (int col = 0; pos > 0; pos--)
+		if ((col += strlen(matchv[pos]) + 2) > cols)
+			return pos + 1;
+
+	return pos;
+}
+
+
+static int
+next_page(int pos, int cols)
+{
+	for (int col = 0; pos < matchc; pos++)
+		if ((col += strlen(matchv[pos]) + 2) > cols)
+			return pos - 1;
+
+	return pos;
+}
+
+
+static void
+print_columns(void)
+{
+	if (current < offset) {
+		next = offset;
+		offset = prev;
+		prev = prev_page(offset, winsize.ws_col - 30 - 1);
+
+	} else if (current >= next) {
+		prev = offset;
+		offset = next;
+		next = next_page(offset, winsize.ws_col - 30 - 1);
+	}
+
+	fputs(offset > 0 ? "< " : "  ", stderr);
+
+	for (int i = offset; i < next && i < matchc; i++)
+		print_string(matchv[i], i == current);
+
+	if (next < matchc)
+		fprintf(stderr, "\033[%dC>", winsize.ws_col - 30);
+}
+
+
+static void
+print_prompt(void)
+{
+	int limit = opt_lines ? winsize.ws_col : 30 - 2;
+
+	fputc('\r', stderr);
+	for (int i = 0; i < limit; i++)
+		fputc(' ', stderr);
+
+	fprintf(stderr, "\r%s %s", opt_prompt, input);
+}
+
+
+static void
+print_screen(int tty_fd)
+{
+	int count;
+
+	if (ioctl(tty_fd, TIOCGWINSZ, &winsize) < 0)
+		die("ioctl");
+
+	count = MIN(opt_lines, winsize.ws_row - 2);
+
+	fputs("\r\033[K", stderr);
+
+	if (opt_lines) {
+		print_lines(count);
+		fprintf(stderr, "\033[%dA", count + 1);
+
+	} else {
+		fputs("\033[30C", stderr);
+		print_columns();
+	}
+
+	print_prompt();
+}
+
+
+static void
+print_clear(int lines)
+{
+	for (int i = 0; i < lines + 1; i++)
+		fputs("\r\033[K\n", stderr);
+	fprintf(stderr, "\033[%dA", lines + 1);
+}
+
+
+static void
 filter_lines(void)
 {
-	char   **tokv = NULL, *s, buffer[sizeof (input)];
-	int   tokc = 0, n = 0;
+	char **tokv = NULL, *s, buffer[sizeof (input)];
+	int    tokc = 0, n = 0;
 
 	current = offset = prev = next = 0;
 
-	/* tokenize input from space characters, this comes from dmenu */
 	strcpy(buffer, input);
+
 	for (s = strtok(buffer, " "); s; s = strtok(NULL, " "), tokc++) {
 
 		if (tokc >= n) {
@@ -138,123 +256,12 @@ filter_lines(void)
 			matchv[matchc++] = linev[i];
 
 	free(tokv);
+
+	next = next_page(0, winsize.ws_col - 30 - 1);
 }
 
 
-void
-print_string(char *str, int current)
-{
-	fputs(current   ? "\033[30;47m" : "", stderr);
-	fputs(opt_lines ? "\033[K " : " ", stderr);
-	fprintf(stderr, "%s \033[m", str);
-}
-
-
-void
-print_lines(int count, int cols)
-{
-	int p = 0;  /* amount of lines printed */
-	offset = current / count * count;
-
-	for (int i = offset; p < count && i < matchc; p++, i++) {
-		fputc('\n', stderr);
-		print_string(matchv[i], i == current);
-	}
-
-	while (p++ <= count)
-		fputs("\n\033[K", stderr);
-}
-
-
-void
-update_pages(int pos, int cols)
-{
-	int col;
-
-	for (prev = pos, col = 0; prev > 0; prev--)
-		if ((col += strlen(matchv[prev]) + 2) > cols)
-			break;
-
-	for (next = pos, col = 0; next <= matchc; next++)
-		if ((col += strlen(matchv[next]) + 2) > cols)
-			break;
-	next++;
-
-	next--;
-}
-
-
-void
-print_columns(int cols)
-{
-	if (current < offset) {
-		offset = prev;
-		update_pages(offset, cols - 30 - 1);
-
-	} else if (current >= next) {
-		offset = next;
-		update_pages(offset, cols - 30 - 1);
-	}
-
-	for (int i = offset; i < next && i < matchc; i++)
-		print_string(matchv[i], i == current);
-
-
-	if (next < matchc)
-		fprintf(stderr, "\033[%dC>", cols);
-}
-
-
-void
-print_prompt(int cols)
-{
-	int limit = opt_lines ? cols : 30;
-
-	fputc('\r', stderr);
-	for (int i = 0; i < limit - 2; i++)
-		fputc(' ', stderr);
-
-	fputs(offset > 0 ? "< " : "  ", stderr);
-
-	fprintf(stderr, "\r%s %s", opt_prompt, input);
-}
-
-
-void
-print_screen(int tty_fd)
-{
-	struct winsize w;
-	int count;
-
-	if (ioctl(tty_fd, TIOCGWINSZ, &w) < 0)
-		die("could not get terminal size");
-
-	count = MIN(opt_lines, w.ws_row - 2);
-
-	fputs("\r\033[K", stderr);
-
-	if (opt_lines) {
-		print_lines(count, w.ws_col);
-		fprintf(stderr, "\033[%dA", count + 1);
-	} else {
-		fputs("\033[30C", stderr);
-		print_columns(w.ws_col);
-	}
-
-	print_prompt(w.ws_col);
-}
-
-
-void
-print_clear(int lines)
-{
-	for (int i = 0; i < lines + 1; i++)
-		fputs("\r\033[K\n", stderr);
-	fprintf(stderr, "\033[%dA", lines + 1);
-}
-
-
-void
+static void
 remove_word_input()
 {
 	int len = strlen(input) - 1;
@@ -270,7 +277,7 @@ remove_word_input()
 }
 
 
-void
+static void
 add_character(char key)
 {
 	int len = strlen(input);
@@ -287,7 +294,7 @@ add_character(char key)
 /*
  * Send the selection to stdout.
  */
-void
+static void
 print_selection(void)
 {
 	fputs("\r\033[K", stderr);
@@ -303,7 +310,7 @@ print_selection(void)
 /*
  * Perform action associated with key
  */
-int
+static int
 input_key(FILE *tty_fp)
 {
 	char key = fgetc(tty_fp);
@@ -359,20 +366,20 @@ input_key(FILE *tty_fp)
 /*
  * Listen for the user input and call the appropriate functions.
  */
-int
+static int
 input_get(int tty_fd)
 {
 	FILE *tty_fp = fopen("/dev/tty", "r");
 	int   exit_code;
-	struct termios termio_old = set_terminal(tty_fd);
 
 	input[0] = '\0';
+
+	set_terminal(tty_fd);
 
 	while ((exit_code = input_key(tty_fp)) == CONTINUE)
 		print_screen(tty_fd);
 
-	/* resets the terminal to the previous state. */
-	tcsetattr(tty_fd, TCSANOW, &termio_old);
+	set_terminal(tty_fd);
 
 	fclose(tty_fp);
 
@@ -380,7 +387,7 @@ input_get(int tty_fd)
 }
 
 
-void
+static void
 usage(void)
 {
 	fputs("usage: iomenu [-l lines] [-p prompt]\n", stderr);
