@@ -22,7 +22,7 @@ static struct termios termios;
 FILE *tty_fp = NULL;
 int   tty_fd;
 
-static char   input[BUFSIZ];
+static char   input[BUFSIZ], formatted[BUFSIZ * 8];
 static int    current = 0, offset = 0, prev = 0, next = 0;
 static int    linec = 0,      matchc = 0;
 static char **linev = NULL, **matchv = NULL;
@@ -119,12 +119,48 @@ match_line(char *line, char **tokv, int tokc)
 }
 
 
+int
+screen_width(char *str)
+{
+	int len = 0;
+
+	for (int i = 0; str[i]; i++, len++)
+		if (str[i] == '\t')
+			len += (len + 7) % 8;
+
+	return len;
+}
+
+
+int
+format_string(char *dest, char *src, int cols)
+{
+	int j = 0;
+
+	for (int i = 0; src[i] && j < cols; i++) {
+
+		if (src[i] == '\t') {
+			for (int t = (j + 7) % 8 + 1; t > 0 && j < cols; t--)
+				dest[j++] = ' ';
+		} else {
+			dest[j++] = src[i];
+		}
+	}
+
+	dest[j] = '\0';
+
+	return j;
+}
+
+
 static void
 print_string(char *str, int current)
 {
+	format_string(formatted, str, winsize.ws_col - 2);
+
 	fputs(current   ? "\033[30;47m" : "", stderr);
 	fputs(opt_lines ? "\033[K " : " ", stderr);
-	fprintf(stderr, "%s \033[m", str);
+	fprintf(stderr, "%s \033[m", formatted);
 }
 
 
@@ -149,7 +185,7 @@ prev_page(int pos, int cols)
 {
 	pos -= pos > 0 ? 1 : 0;
 	for (int col = 0; pos > 0; pos--)
-		if ((col += strlen(matchv[pos]) + 2) > cols)
+		if ((col += screen_width(matchv[pos]) + 2) > cols)
 			return pos + 1;
 	return pos;
 }
@@ -159,7 +195,7 @@ static int
 next_page(int pos, int cols)
 {
 	for (int col = 0; pos < matchc; pos++)
-		if ((col += strlen(matchv[pos]) + 2) > cols)
+		if ((col += screen_width(matchv[pos]) + 2) > cols)
 			return pos;
 	return pos;
 }
@@ -339,6 +375,10 @@ input_key(void)
 		if (linec > 0)
 			strcpy(input, matchv[current]);
 		filter_lines();
+		break;
+
+	case CONTROL('Y'):
+		print_selection();
 		break;
 
 	case CONTROL('J'):
