@@ -1,10 +1,12 @@
-#include <ctype.h>
 #include <fcntl.h>
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <wchar.h>
+#include <wctype.h>
 
 #include <sys/ioctl.h>
 
@@ -22,11 +24,11 @@ static struct termios termios;
 FILE *tty_fp = NULL;
 int   tty_fd;
 
-static char   input[BUFSIZ], formatted[BUFSIZ * 8];
-static int    current = 0, offset = 0, prev = 0, next = 0;
-static int    linec = 0,      matchc = 0;
-static char **linev = NULL, **matchv = NULL;
-static int    opt_l = 0;
+static int       current = 0, offset = 0, prev = 0, next = 0;
+static int       linec = 0,      matchc = 0;
+static wchar_t **linev = NULL, **matchv = NULL;
+static wchar_t   input[BUFSIZ], formatted[BUFSIZ * 8];
+static int       opt_l = 0;
 
 
 static void
@@ -73,45 +75,45 @@ set_terminal(void)
 static void
 read_lines(void)
 {
-	char buffer[BUFSIZ];
+	wchar_t buffer[BUFSIZ];
 	int size = 1 << 6;
 
-	linev  = malloc(sizeof (char **) * size);
-	matchv = malloc(sizeof (char **) * size);
+	linev  = malloc(sizeof (wchar_t **) * size);
+	matchv = malloc(sizeof (wchar_t **) * size);
 	if (linev == NULL || matchv == NULL)
 		die("malloc");
 
 	linev[0] = matchv[0] = NULL;
 
 	/* read the file into an array of lines */
-	for (; fgets(buffer, sizeof buffer, stdin); linec++, matchc++) {
-		int len = strlen(buffer);
+	for (; fgetws(buffer, sizeof buffer, stdin); linec++, matchc++) {
+		int len = wcslen(buffer);
 
 		if (len > 0 && buffer[len - 1] == '\n')
 			buffer[len - 1] = '\0';
 
 		if (linec >= size) {
 			size *= 2;
-			linev  = realloc(linev,  sizeof (char **) * size);
-			matchv = realloc(matchv, sizeof (char **) * size);
+			linev  = realloc(linev,  sizeof (wchar_t **) * size);
+			matchv = realloc(matchv, sizeof (wchar_t **) * size);
 			if (linev == NULL || matchv == NULL)
 				die("realloc");
 		}
 
-		linev[linec] = matchv[matchc] = malloc(len);
+		linev[linec] = matchv[matchc] = malloc(len * sizeof (wchar_t));
 		if (linev[linec] == NULL)
 			die("malloc");
 
-		strcpy(linev[linec], buffer);
+		wcscpy(linev[linec], buffer);
 	}
 }
 
 
 static int
-match_line(char *line, char **tokv, int tokc)
+match_line(wchar_t *line, wchar_t **tokv, int tokc)
 {
 	for (int i = 0; i < tokc; i++)
-		if (strstr(line, tokv[i]) == NULL)
+		if (wcsstr(line, tokv[i]) == NULL)
 			return 0;
 
 	return 1;
@@ -119,45 +121,46 @@ match_line(char *line, char **tokv, int tokc)
 
 
 int
-screen_width(char *str)
+screen_width(wchar_t *wcs)
 {
 	int len = 0;
 
-	for (int i = 0; str[i]; i++, len++)
-		if (str[i] == '\t')
+	for (int i = 0; wcs[i]; i++, len++)
+		if (wcs[i] == '\t')
 			len += (len + 7) % 8;
 
 	return len;
 }
 
 
-static char *
-format(char *str, int cols)
+static wchar_t *
+format(wchar_t *wcs, int cols)
 {
 	int j = 0;
 
-	for (int i = 0; str[i] && j < cols; i++) {
+	for (int i = 0; wcs[i] && j < cols; i++) {
 
-		if (str[i] == '\t') {
+		if (wcs[i] == L'\t') {
 			for (int t = (j + 7) % 8 + 1; t > 0 && j < cols; t--)
-				formatted[j++] = ' ';
+				formatted[j++] = L' ';
 		} else {
-			formatted[j++] = str[i];
+			formatted[j++] = wcs[i];
 		}
 	}
 
-	formatted[j] = '\0';
+	formatted[j] = L'\0';
 
 	return formatted;
 }
 
 
 static void
-print_string(char *str, int current)
+print_string(wchar_t *wcs, int current)
 {
-	fputs(current   ? "\033[30;47m" : "", stderr);
-	fputs(opt_l ? "\033[K " : " ", stderr);
-	fprintf(stderr, "%s \033[m", format(str, ws.ws_col - 2));
+	fputws(current   ? L"\033[30;47m" : L"", stderr);
+	fputws(opt_l ? L"\033[K " : L" ", stderr);
+	fputws(format(wcs, ws.ws_col - 2), stderr);
+	fputws(L" \033[m", stderr);
 }
 
 
@@ -168,12 +171,12 @@ print_lines(int count)
 	offset = current / count * count;
 
 	for (int i = offset; p < count && i < matchc; p++, i++) {
-		fputc('\n', stderr);
+		fputwc(L'\n', stderr);
 		print_string(matchv[i], i == current);
 	}
 
 	while (p++ <= count)
-		fputs("\n\033[K", stderr);
+		fputws(L"\n\033[K", stderr);
 }
 
 
@@ -210,13 +213,13 @@ print_columns(void)
 		next = next_page(offset, ws.ws_col - OFFSET - 4);
 	}
 
-	fputs(offset > 0 ? "< " : "  ", stderr);
+	fputws(offset > 0 ? L"< " : L"  ", stderr);
 
 	for (int i = offset; i < next && i < matchc; i++)
 		print_string(matchv[i], i == current);
 
 	if (next < matchc)
-		fprintf(stderr, "\033[%dC>", ws.ws_col - OFFSET);
+		fwprintf(stderr, L"\033[%dC>", ws.ws_col - OFFSET);
 }
 
 
@@ -230,42 +233,45 @@ print_screen(void)
 
 	count = MIN(opt_l, ws.ws_row - 2);
 
-	fputs("\r\033[K", stderr);
+	fputws(L"\r\033[K", stderr);
 
 	if (opt_l) {
 		print_lines(count);
-		fprintf(stderr, "\033[%dA", count + 1);
+		fwprintf(stderr, L"\033[%dA", count + 1);
 
 	} else {
-		fputs("\033[30C", stderr);
+		fputws(L"\033[30C", stderr);
 		print_columns();
 	}
 
 	format(input, opt_l || matchc == 0 ? ws.ws_col : OFFSET - 3);
-	fprintf(stderr, "\r %s", formatted);
+	fputws(L"\r ", stderr);
+	fputws(formatted, stderr);
+
+	fflush(stderr);
 }
 
 
 static void
-print_clear(int lines)
+clear(int lines)
 {
 	for (int i = 0; i < lines + 1; i++)
-		fputs("\r\033[K\n", stderr);
-	fprintf(stderr, "\033[%dA", lines + 1);
+		fputws(L"\r\033[K\n", stderr);
+	fwprintf(stderr, L"\033[%dA", lines + 1);
 }
 
 
 static void
 filter_lines(void)
 {
-	char **tokv = NULL, *s, buffer[sizeof (input)];
-	int    tokc = 0, n = 0;
+	wchar_t **tokv = NULL, *tok, *s, buffer[sizeof (input)];
+	int       tokc = 0, n = 0;
 
 	current = offset = prev = next = 0;
 
-	strcpy(buffer, input);
+	wcscpy(buffer, input);
 
-	for (s = strtok(buffer, " "); s; s = strtok(NULL, " "), tokc++) {
+	for (s = wcstok(buffer, L" ", &tok); s; s = wcstok(NULL, L" ", &tok), tokc++) {
 
 		if (tokc >= n) {
 			tokv = realloc(tokv, ++n * sizeof (*tokv));
@@ -289,13 +295,13 @@ filter_lines(void)
 static void
 remove_word_input()
 {
-	int len = strlen(input) - 1;
+	int len = wcslen(input) - 1;
 
-	for (int i = len; i >= 0 && isspace(input[i]); i--)
+	for (int i = len; i >= 0 && iswspace(input[i]); i--)
 		input[i] = '\0';
 
-	len = strlen(input) - 1;
-	for (int i = len; i >= 0 && !isspace(input[i]); i--)
+	len = wcslen(input) - 1;
+	for (int i = len; i >= 0 && !iswspace(input[i]); i--)
 		input[i] = '\0';
 
 	filter_lines();
@@ -305,9 +311,9 @@ remove_word_input()
 static void
 add_character(char key)
 {
-	int len = strlen(input);
+	int len = wcslen(input);
 
-	if (isprint(key)) {
+	if (iswprint(key)) {
 		input[len]     = key;
 		input[len + 1] = '\0';
 	}
@@ -319,8 +325,8 @@ add_character(char key)
 static void
 print_selection(void)
 {
-	fputs("\r\033[K", stderr);
-	puts(matchc > 0 ? matchv[current] : input);
+	fputws(L"\r\033[K", stderr);
+	fputws(matchc > 0 ? matchv[current] : input, stdout);
 }
 
 
@@ -330,12 +336,12 @@ print_selection(void)
 static int
 input_key(void)
 {
-	char key = fgetc(tty_fp);
+	wchar_t key = fgetwc(tty_fp);
 
 	switch (key) {
 
 	case CONTROL('C'):
-		print_clear(opt_l);
+		clear(opt_l);
 		return EXIT_FAILURE;
 
 	case CONTROL('U'):
@@ -349,7 +355,7 @@ input_key(void)
 
 	case 127:
 	case CONTROL('H'):  /* backspace */
-		input[strlen(input) - 1] = '\0';
+		input[wcslen(input) - 1] = '\0';
 		filter_lines();
 		break;
 
@@ -363,7 +369,7 @@ input_key(void)
 
 	case CONTROL('I'):  /* tab */
 		if (linec > 0)
-			strcpy(input, matchv[current]);
+			wcscpy(input, matchv[current]);
 		filter_lines();
 		break;
 
@@ -408,7 +414,7 @@ input_get(void)
 static void
 usage(void)
 {
-	fputs("usage: iomenu [-l lines]\n", stderr);
+	fputws(L"usage: iomenu [-l lines]\n", stderr);
 
 	exit(EXIT_FAILURE);
 }
@@ -433,6 +439,7 @@ main(int argc, char *argv[])
 		}
 	}
 
+	setlocale(LC_ALL, "");
 	read_lines();
 
 	tty_fp = fopen("/dev/tty", "r");
@@ -442,7 +449,7 @@ main(int argc, char *argv[])
 	exit_code = input_get();
 
 	tcsetattr(tty_fd, TCSANOW, &termios);
-	print_clear(opt_l);
+	clear(opt_l);
 	fclose(tty_fp);
 	 close(tty_fd);
 	free_all();
