@@ -110,17 +110,6 @@ read_lines(void)
 
 
 static int
-match_line(wchar_t *line, wchar_t **tokv, int tokc)
-{
-	for (int i = 0; i < tokc; i++)
-		if (wcsstr(line, tokv[i]) == NULL)
-			return 0;
-
-	return 1;
-}
-
-
-int
 screen_width(wchar_t *wcs)
 {
 	int len = 0;
@@ -258,6 +247,17 @@ clear(int lines)
 	for (int i = 0; i < lines + 1; i++)
 		fputws(L"\r\033[K\n", stderr);
 	fwprintf(stderr, L"\033[%dA", lines + 1);
+}
+
+
+static int
+match_line(wchar_t *line, wchar_t **tokv, int tokc)
+{
+	for (int i = 0; i < tokc; i++)
+		if (wcsstr(line, tokv[i]) == NULL)
+			return 0;
+
+	return 1;
 }
 
 
@@ -420,7 +420,7 @@ usage(void)
 }
 
 
-int
+static int
 main(int argc, char *argv[])
 {
 	int exit_code;
