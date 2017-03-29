@@ -327,6 +327,7 @@ print_selection(void)
 {
 	fputws(L"\r\033[K", stderr);
 	fputws(matchc > 0 ? matchv[current] : input, stdout);
+	fputwc(L'\n', stdout);
 }
 
 
@@ -420,7 +421,7 @@ usage(void)
 }
 
 
-static int
+int
 main(int argc, char *argv[])
 {
 	int exit_code;
