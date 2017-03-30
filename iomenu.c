@@ -21,7 +21,6 @@
 
 static struct winsize ws;
 static struct termios termios;
-FILE *tty_fp = NULL;
 int   tty_fd;
 
 static int       current = 0, offset = 0, prev = 0, next = 0;
@@ -48,8 +47,7 @@ static void
 die(const char *s)
 {
 	tcsetattr(tty_fd, TCSANOW, &termios);
-	fclose(tty_fp);
-	 close(tty_fd);
+	close(tty_fd);
 	free_all();
 	perror(s);
 	exit(EXIT_FAILURE);
@@ -337,7 +335,7 @@ print_selection(void)
 static int
 input_key(void)
 {
-	wchar_t key = fgetwc(tty_fp);
+	wchar_t key = fgetwc(stdin);
 
 	switch (key) {
 
@@ -401,8 +399,6 @@ input_get(void)
 
 	input[0] = '\0';
 
-	set_terminal();
-
 	while ((exit_code = input_key()) == CONTINUE)
 		print_screen();
 
@@ -443,16 +439,18 @@ main(int argc, char *argv[])
 	setlocale(LC_ALL, "");
 	read_lines();
 
-	tty_fp = fopen("/dev/tty", "r");
+	if (!freopen("/dev/tty", "r", stdin) || !freopen("/dev/tty", "w", stderr))
+		die("freopen");
 	tty_fd =  open("/dev/tty", O_RDWR);
+
+	set_terminal();
 
 	print_screen();
 	exit_code = input_get();
 
 	tcsetattr(tty_fd, TCSANOW, &termios);
 	clear(opt_l);
-	fclose(tty_fp);
-	 close(tty_fd);
+	close(tty_fd);
 	free_all();
 
 	return exit_code;
