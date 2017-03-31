@@ -27,7 +27,7 @@ static int       current = 0, offset = 0, prev = 0, next = 0;
 static int       linec = 0,      matchc = 0;
 static wchar_t **linev = NULL, **matchv = NULL;
 static wchar_t   input[BUFSIZ], formatted[BUFSIZ * 8];
-static int       opt_l = 0;
+static int       opt_l = 0, opt_tb = 0;
 
 
 static void
@@ -59,14 +59,46 @@ set_terminal(void)
 {
 	struct termios new;
 
+	/* get window size */
+	if (ioctl(tty_fd, TIOCGWINSZ, &ws) < 0)
+		die("ioctl");
+
+	/* save cursor postition */
+	fputws(L"\033[s", stderr);
+
+	/* put cursor at the top / bottom */
+	switch (opt_tb) {
+	case 't': fputws(L"\033[H", stderr);                        break;
+	case 'b': fwprintf(stderr, L"\033[%dH", ws.ws_row - opt_l); break;
+	}
+
+	/* save attributes to `termios` */
 	if (tcgetattr(tty_fd, &termios) < 0 || tcgetattr(tty_fd, &new) < 0) {
 		perror("tcgetattr");
 		exit(EXIT_FAILURE);
 	}
 
+	/* change to raw mode */
 	new.c_lflag &= ~(ICANON | ECHO | IGNBRK);
-
 	tcsetattr(tty_fd, TCSANOW, &new);
+}
+
+
+static void
+reset_terminal(void)
+{
+	extern struct termios termios;
+	extern struct winsize ws;
+
+	/* clear terminal */
+	for (int i = 0; i < opt_l + 1; i++)
+		fputws(L"\r\033[K\n", stderr);
+
+	/* reset cursor position */
+	fputws(L"\033[u", stderr);
+
+	/* set terminal back to normal mode */
+	tcsetattr(tty_fd, TCSANOW, &termios);
 }
 
 
@@ -215,9 +247,6 @@ print_screen(void)
 {
 	int count;
 
-	if (ioctl(tty_fd, TIOCGWINSZ, &ws) < 0)
-		die("ioctl");
-
 	count = MIN(opt_l, ws.ws_row - 2);
 
 	fputws(L"\r\033[K", stderr);
@@ -236,15 +265,6 @@ print_screen(void)
 	fputws(formatted, stderr);
 
 	fflush(stderr);
-}
-
-
-static void
-clear(int lines)
-{
-	for (int i = 0; i < lines + 1; i++)
-		fputws(L"\r\033[K\n", stderr);
-	fwprintf(stderr, L"\033[%dA", lines + 1);
 }
 
 
@@ -340,7 +360,6 @@ input_key(void)
 	switch (key) {
 
 	case CONTROL('C'):
-		clear(opt_l);
 		return EXIT_FAILURE;
 
 	case CONTROL('U'):
@@ -399,6 +418,7 @@ input_get(void)
 
 	input[0] = '\0';
 
+	print_screen();
 	while ((exit_code = input_key()) == CONTINUE)
 		print_screen();
 
@@ -431,6 +451,10 @@ main(int argc, char *argv[])
 			if (++i >= argc || sscanf(argv[i], "%d", &opt_l) <= 0)
 				usage();
 			break;
+
+		case 't': opt_tb = 't'; break;
+		case 'b': opt_tb = 'b'; break;
+
 		default:
 			usage();
 		}
@@ -442,15 +466,14 @@ main(int argc, char *argv[])
 	if (!freopen("/dev/tty", "r", stdin) || !freopen("/dev/tty", "w", stderr))
 		die("freopen");
 	tty_fd =  open("/dev/tty", O_RDWR);
-
 	set_terminal();
 
-	print_screen();
+	/* main loop */
 	exit_code = input_get();
 
-	tcsetattr(tty_fd, TCSANOW, &termios);
-	clear(opt_l);
+	reset_terminal();
 	close(tty_fd);
+
 	free_all();
 
 	return exit_code;

@@ -11,6 +11,8 @@
 .
 .Nm
 .Op Fl l Ar lines
+.Op Fl b
+.Op Fl t
 .
 .Sh DESCRIPTION
 .
@@ -31,6 +33,10 @@ the items are displayed in an horizontal list.
 Otherwise, in a vertical list of at most
 .Ar lines
 lines.
+.
+.It Fl t / Fl b
+Print the menu at the top / bottom rather than at current cursor position.
+Reset the cursor postition afterward.
 .El
 .
 .Ss Selection control
