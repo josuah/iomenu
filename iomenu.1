@@ -11,6 +11,7 @@
 .
 .Nm
 .Op Fl l Ar lines
+.Op Fl p Ar prompt
 .Op Fl b
 .Op Fl t
 .
@@ -33,6 +34,10 @@ the items are displayed in an horizontal list.
 Otherwise, in a vertical list of at most
 .Ar lines
 lines.
+.
+.It Fl p Ar prompt
+Set the prompt to display at the beginning of the input to
+.Ar prompt .
 .
 .It Fl t / Fl b
 Print the menu at the top / bottom rather than at current cursor position.

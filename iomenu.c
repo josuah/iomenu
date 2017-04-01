@@ -11,8 +11,8 @@
 #include <sys/ioctl.h>
 
 
-#define OFFSET    30   /* in horizontal mode, amount of space kept for writing */
-#define CONTINUE  2    /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
+#define OFFSET    30  /* in horizontal mode, amount of space kept for writing */
+#define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
 #define CONTROL(char) (char ^ 0x40)
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
@@ -28,6 +28,7 @@ static int       linec = 0,      matchc = 0;
 static wchar_t **linev = NULL, **matchv = NULL;
 static wchar_t   input[BUFSIZ], formatted[BUFSIZ * 8];
 static int       opt_l = 0, opt_tb = 0;
+static wchar_t   opt_p[BUFSIZ];
 
 
 static void
@@ -140,7 +141,7 @@ read_lines(void)
 
 
 static int
-screen_width(wchar_t *wcs)
+string_width(wchar_t *wcs)
 {
 	int len = 0;
 
@@ -152,6 +153,9 @@ screen_width(wchar_t *wcs)
 }
 
 
+/*
+ * Prepare a string for printing.
+ */
 static wchar_t *
 format(wchar_t *wcs, int cols)
 {
@@ -204,7 +208,7 @@ prev_page(int pos, int cols)
 {
 	pos -= pos > 0 ? 1 : 0;
 	for (int col = 0; pos > 0; pos--)
-		if ((col += screen_width(matchv[pos]) + 2) > cols)
+		if ((col += string_width(matchv[pos]) + 2) > cols)
 			return pos + 1;
 	return pos;
 }
@@ -214,7 +218,7 @@ static int
 next_page(int pos, int cols)
 {
 	for (int col = 0; pos < matchc; pos++)
-		if ((col += screen_width(matchv[pos]) + 2) > cols)
+		if ((col += string_width(matchv[pos]) + 2) > cols)
 			return pos;
 	return pos;
 }
@@ -245,23 +249,39 @@ print_columns(void)
 static void
 print_screen(void)
 {
-	int count;
+	extern wchar_t formatted[BUFSIZ * 8];
 
-	count = MIN(opt_l, ws.ws_row - 2);
+	int cols = opt_l || matchc == 0 ? ws.ws_col : OFFSET - 3;
 
 	fputws(L"\r\033[K", stderr);
 
+	/* items */
 	if (opt_l) {
+		int count = MIN(opt_l, ws.ws_row - 2);
 		print_lines(count);
 		fwprintf(stderr, L"\033[%dA", count + 1);
-
 	} else {
-		fputws(L"\033[30C", stderr);
+		fwprintf(stderr, L"\033[%dC", OFFSET);
 		print_columns();
 	}
 
-	format(input, opt_l || matchc == 0 ? ws.ws_col : OFFSET - 3);
-	fputws(L"\r ", stderr);
+	fputws(L"\r", stderr);
+
+	/* prompt */
+	if (opt_p[0] != '\0') {
+		format(opt_p, cols);
+		fputws(L"\033[30;47m ", stderr);
+		for (int i = 0; formatted[i]; i++)
+			fputwc(formatted[i], stderr);
+		fputws(L" \033[m", stderr);
+		cols -= wcslen(formatted) + 3;
+	}
+
+	fputwc(L' ', stderr);
+
+	/* input */
+	cols = (opt_l || matchc == 0 ? cols : MAX(OFFSET, cols) - 3);
+	format(input, cols);
 	fputws(formatted, stderr);
 
 	fflush(stderr);
@@ -349,9 +369,6 @@ print_selection(void)
 }
 
 
-/*
- * Perform action associated with key
- */
 static int
 input_key(void)
 {
@@ -431,7 +448,7 @@ input_get(void)
 static void
 usage(void)
 {
-	fputws(L"usage: iomenu [-l lines]\n", stderr);
+	fputws(L"usage: iomenu [-b] [-t] [-l lines] [-p prompt]\n", stderr);
 
 	exit(EXIT_FAILURE);
 }
@@ -440,7 +457,11 @@ usage(void)
 int
 main(int argc, char *argv[])
 {
+	extern wchar_t opt_p[BUFSIZ];
+
 	int exit_code;
+
+	opt_p[0] = '\0';
 
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] != '-' || strlen(argv[i]) != 2)
@@ -455,6 +476,12 @@ main(int argc, char *argv[])
 		case 't': opt_tb = 't'; break;
 		case 'b': opt_tb = 'b'; break;
 
+		case 'p':
+			if (++i >= argc)
+				usage();
+			mbstowcs(opt_p, argv[i], BUFSIZ);
+			break;
+
 		default:
 			usage();
 		}
@@ -463,17 +490,15 @@ main(int argc, char *argv[])
 	setlocale(LC_ALL, "");
 	read_lines();
 
-	if (!freopen("/dev/tty", "r", stdin) || !freopen("/dev/tty", "w", stderr))
+	if (!freopen("/dev/tty", "r", stdin) ||
+	    !freopen("/dev/tty", "w", stderr))
 		die("freopen");
 	tty_fd =  open("/dev/tty", O_RDWR);
+
 	set_terminal();
-
-	/* main loop */
-	exit_code = input_get();
-
+	exit_code = input_get();  /* main loop */
 	reset_terminal();
 	close(tty_fd);
-
 	free_all();
 
 	return exit_code;
