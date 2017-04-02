@@ -2,8 +2,8 @@
  * Functions handling UTF-8 srings:
  *
  * stdin  -> buffer -> stdout
- * char[] -> long[] -> char[]
  * UTF-8  ->  rune  -> UTF-8
+ * char[] -> long[] -> char[]
  */
 
 
@@ -15,15 +15,16 @@
 
 
 /*
- * Return the number of bytes in rune for the `len` next char in `s`,
- * or 0 if `utf` is misencoded.
+ * Return the number of bytes in rune for the `n` next char in `s`,
+ * or 0 if ti is misencoded.
  *
- * Thanks to Connor Lane Smith for some ideas.
+ * Thanks to Connor Lane Smith for the idea of using 0x??.
  */
 int
-utflen(char *s, int n) {
+utflen(char *s, int n)
+{
 	int len = 1;
-	int contiunation_bytes =
+	int continuation_bytes =
 		(s[0] & 0x80) == 0x00 ? 0 :  /* 0xxxxxxx */
 		(s[0] & 0xc0) == 0x80 ? 1 :  /* 10xxxxxx */
 		(s[0] & 0xe0) == 0xc0 ? 2 :  /* 110xxxxx */
@@ -34,11 +35,12 @@ utflen(char *s, int n) {
 		(s[0] & 0xff) == 0xfe ? 7 :  /* 11111110 */
 		                        8;   /* 11111111 */
 
-	if (contiunation_bytes > 6 || contiunation_bytes > n)
+	if (continuation_bytes > 6 || continuation_bytes > n)
 		return 0;
 
 	/* check if continuation bytes are 10xxxxxx and increment `len` */
-	switch (contiunation_bytes) {  /* FALLTHROUGH */
+	switch (continuation_bytes) {  /* FALLTHROUGH */
+	case 7:	if ((s[6] & 0xc0) != 0x80) return 0; else len++;
 	case 6:	if ((s[5] & 0xc0) != 0x80) return 0; else len++;
 	case 5:	if ((s[4] & 0xc0) != 0x80) return 0; else len++;
 	case 4:	if ((s[3] & 0xc0) != 0x80) return 0; else len++;
@@ -51,10 +53,11 @@ utflen(char *s, int n) {
 
 
 /*
- * return the number of bytes required to display `rune`
+ * Return the number of bytes required to display `rune`
  */
 int
-runelen(long r) {
+runelen(long r)
+{
 	if (r <= 0x0000007f) return 1;
 	if (r <= 0x000007ff) return 2;
 	if (r <= 0x0000ffff) return 3;
@@ -66,12 +69,13 @@ runelen(long r) {
 
 
 /*
- * return the firsts `len` bytes in the sring poined by `utf` to a rune.
- * if the `utf` is misencoded, the first char is returned as a
- * negative value.
+ * Sets `r` to a rune corresponding to the firsts `n` bytes of `s`
+ * and return the number of bytes read.
+ * if `s` is misencoded, the rune is stored as a negative value.
  */
 int
-utftorune(long *r, char *s, int n) {
+utftorune(long *r, char *s, int n)
+{
 	int len = utflen(s, n);
 
 	/* first byte */
@@ -100,36 +104,37 @@ utftorune(long *r, char *s, int n) {
 
 
 /*
- * return the next rune in the `len` next `utf`, or 0 if
- * `utf` is misencoded.
+ * Encode the rune `r` in utf-8 in `s`, null-terminated, and return
+ * the number of bytes written, 0 if `r` is invalid.
  */
 int
-runetoutf(char *s, long r) {
+runetoutf(char *s, long r)
+{
 	switch (runelen(r)) {
 	case 1:
-		s[0] = r;                         /* 0xxxxxxx */
+		s[0] = r;                          /* 0xxxxxxx */
 		s[1] = '\0';
 		return 1;
 	case 2:
-		s[0] = 0xc0 | (0x3f & (r >> 6));  /* 110xxxxx */
-		s[1] = 0x80 | (0x3f & (r));       /* 10xxxxxx */
+		s[0] = 0xc0 | (0x1f & (r >> 6));   /* 110xxxxx */
+		s[1] = 0x80 | (0x3f & (r));        /* 10xxxxxx */
 		s[2] = '\0';
 		return 2;
 	case 3:
-		s[0] = 0xe0 | (0x3f & (r >> 12)); /* 1110xxxx */
-		s[1] = 0x80 | (0x3f & (r >> 6));  /* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (r));       /* 10xxxxxx */
+		s[0] = 0xe0 | (0x0f & (r >> 12));  /* 1110xxxx */
+		s[1] = 0x80 | (0x3f & (r >> 6));   /* 10xxxxxx */
+		s[2] = 0x80 | (0x3f & (r));        /* 10xxxxxx */
 		s[3] = '\0';
 		return 3;
 	case 4:
-		s[0] = 0xf0 | (0x3f & (r >> 6));  /* 11110xxx */
-		s[1] = 0x80 | (0x3f & (r >> 6));  /* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (r >> 6));  /* 10xxxxxx */
-		s[3] = 0x80 | (0x3f & (r));       /* 10xxxxxx */
+		s[0] = 0xf0 | (0x07 & (r >> 18));  /* 11110xxx */
+		s[1] = 0x80 | (0x3f & (r >> 12));  /* 10xxxxxx */
+		s[2] = 0x80 | (0x3f & (r >> 6));   /* 10xxxxxx */
+		s[3] = 0x80 | (0x3f & (r));        /* 10xxxxxx */
 		s[4] = '\0';
 		return 4;
 	case 5:
-		s[0] = 0xf8 | (0x3f & (r >> 24));  /* 111110xx */
+		s[0] = 0xf8 | (0x03 & (r >> 24));  /* 111110xx */
 		s[1] = 0x80 | (0x3f & (r >> 18));  /* 10xxxxxx */
 		s[2] = 0x80 | (0x3f & (r >> 12));  /* 10xxxxxx */
 		s[3] = 0x80 | (0x3f & (r >> 6));   /* 10xxxxxx */
@@ -137,7 +142,7 @@ runetoutf(char *s, long r) {
 		s[5] = '\0';
 		return 5;
 	case 6:
-		s[0] = 0xfc | (0x3f & (r >> 30));  /* 1111110x */
+		s[0] = 0xfc | (0x01 & (r >> 30));  /* 1111110x */
 		s[1] = 0x80 | (0x3f & (r >> 24));  /* 10xxxxxx */
 		s[2] = 0x80 | (0x3f & (r >> 18));  /* 10xxxxxx */
 		s[3] = 0x80 | (0x3f & (r >> 12));  /* 10xxxxxx */
@@ -152,31 +157,56 @@ runetoutf(char *s, long r) {
 
 
 /*
+ * Read a newly allocated string from `f` up to the first '\n'
+ * character or the end of the fifle.  It is stored as a rune array,
+ * and `r` is set to point to it.
+ */
+int
+getutf(long **r, FILE *f)
+{
+	int slen, rlen = 0, c, size = BUFSIZ;
+	char *s;
+
+	if (!(s = malloc(size))) return -1;
+	for (slen = 0; (c = fgetc(f)) != EOF && (c != '\n'); slen++) {
+		s[slen] = c;
+
+		if (slen >= size)
+			if (!(s = realloc(s, ++size))) return -1;
+	}
+
+	if (!(*r = malloc(size * sizeof (long)))) return -1;
+	for (int i = 0; i < slen; rlen++)
+		i += utftorune(*r + rlen, s + i, slen - i);
+
+	free(s);
+	return rlen;
+}
+
+
+/*
  * Fill `s` with a printable representation of `r` and return the
- * width of the character
+ * width of the character.  The tab characters are converted to
+ * spaces as if it was at the column `col`.
  */
 int
 runetoprint(char *s, long r, int col)
 {
-	/* ASCII control characters and invalid characters */
-	if (r == '\t') {
+	/* invalid */
+	if (r < 0) {
+		sprintf(s, "[%02x]", (unsigned char) -r);
+
+	} else if (r == '\t') {
 		int i;
 		for (i = 0; i < (col + 1) % 8 - 1; i++)
 			s[i] = ' ';
-		s[i] = '\0';
+		s[i] = '\0'; s[0] = '|';
 
-	} else if (r < ' ' || r == 0x7f) {
-		sprintf(s, "[%02x]", (char) r);
+	/* ascii control */
+	} else if (r == 0x7f || r < ' ') {
+		sprintf(s, "[%02lx]", r);
 
-	/* non-breaking space */
-	} else if (r == 0xa0) {
-		sprintf(s, "[ ]");
-
-	/* soft hyphen */
-	} else if (r == 0xad) {
-		sprintf(s, "[-]");
-
-	/* valid UTF-8 but not printable Unicode code points */
+	/* utf-8 but not printable */
 	} else if (
 		/* unicode control */
 		(0x80 <= r && r < 0xa0)          ||
@@ -209,47 +239,21 @@ runetoprint(char *s, long r, int col)
 }
 
 
-/*
- * Read a newly allocated string `s` from `file` up to the first '\n'
- * character or the end of the file.
- */
-int
-getutf(char **s, FILE *file)
-{
-	int i; int c;
-
-	*s = malloc(BUFSIZ);
-
-	for (i = 0; (c = fgetc(file)) != EOF && (c != '\n'); i++) {
-		(*s)[i] = c;
-
-		if ((size_t) i + 16 >= sizeof(s))
-			*s = realloc(*s, sizeof(s) + BUFSIZ);
-	}
-
-	return i;
-}
-
-
 int
 main()
 {
-	char s[7];
-	long r;
+	char s[BUFSIZ];
+	long *r;
 
-	for (int i = 0; i < 9000; i++) {
-		runetoutf(s, i);
-		utftorune(&r, s, 7);
-		runetoutf(s, r);
-		utftorune(&r, s, 7);
-		runetoprint(s, r, 0);
+	for (int len; (len = getutf(&r, stdin)) >= 0 && !feof(stdin); free(r)) {
+		for (int i = 0; i < len; i++) {
+			runetoprint(s, r[i], 0);
+			fputs(s, stdout);
+		}
 
-		printf("%5X: ", r);
-		printf("'%s'\t", s);
-
-		if (i % 8 == 0)
-			puts("");
+		putchar('\n');
 	}
+	free(r);
 
 	return 0;
 }
