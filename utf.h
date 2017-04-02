@@ -10,5 +10,5 @@ int runetoutf(char *, long);
 int isprintrune(long);
 
 /* stdin / stdout */
-int getutf(long **, FILE *);
 int runetoprint(char *, long, int);
+int getutf(long **, FILE *);

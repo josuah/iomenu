@@ -157,34 +157,6 @@ runetoutf(char *s, long r)
 
 
 /*
- * Read a newly allocated string from `f` up to the first '\n'
- * character or the end of the fifle.  It is stored as a rune array,
- * and `r` is set to point to it.
- */
-int
-getutf(long **r, FILE *f)
-{
-	int slen, rlen = 0, c, size = BUFSIZ;
-	char *s;
-
-	if (!(s = malloc(size))) return -1;
-	for (slen = 0; (c = fgetc(f)) != EOF && (c != '\n'); slen++) {
-		s[slen] = c;
-
-		if (slen >= size)
-			if (!(s = realloc(s, ++size))) return -1;
-	}
-
-	if (!(*r = malloc(size * sizeof (long)))) return -1;
-	for (int i = 0; i < slen; rlen++)
-		i += utftorune(*r + rlen, s + i, slen - i);
-
-	free(s);
-	return rlen;
-}
-
-
-/*
  * Returns 1 if the rune is a printable character and 0 if not.
  */
 int
@@ -240,6 +212,34 @@ runetoprint(char *s, long r, int col)
 	}
 
 	return 0;
+}
+
+
+/*
+ * Read a newly allocated string from `f` up to the first '\n'
+ * character or the end of the file.  It is stored as a rune array, and
+ * `r` is set to point to it.  The length of the string is returned, or
+ * -1 if malloc fails.
+ */
+int
+getutf(long **r, FILE *f)
+{
+	int slen, rlen = 0, c, size = BUFSIZ;
+	char *s;
+
+	if (!(s = malloc(size))) return -1;
+	for (slen = 0; (c = fgetc(f)) != EOF && (c != '\n'); slen++) {
+		if (slen > size)
+			if (!(s = realloc(s, ++size))) return -1;
+		s[slen] = c;
+	}
+
+	if (!(*r = malloc(size * sizeof (long)))) return -1;
+	for (int i = 0; i < slen; rlen++)
+		i += utftorune(*r + rlen, s + i, slen - i);
+
+	free(s);
+	return rlen;
 }
 
 
