@@ -11,7 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "text.h"
+#include "utf.h"
 
 
 /*
@@ -98,7 +98,7 @@ utftorune(long *r, char *s, int n)
 		*r = -(unsigned char) s[0];
 		return 1;
 	}
- 
+
 	return len;
 }
 
@@ -185,6 +185,32 @@ getutf(long **r, FILE *f)
 
 
 /*
+ * Returns 1 if the rune is a printable character and 0 if not.
+ */
+int
+isprintrune(long r)
+{
+	return !(
+		(r == 0x7f || r < ' ')           ||  /* ascii control */
+
+		(0x80 <= r && r < 0xa0)          ||  /* unicode control */
+
+		(r > 0x10ffff)                   ||  /* outside range */
+
+		(r % 0x010000 == 0x00fffe)       ||  /* noncharacters */
+		(r % 0x010000 == 0x00ffff)       ||
+		(0x00fdd0 <= r && r <= 0x00fdef) ||
+
+		(0x00e000 <= r && r <= 0x00f8ff) ||  /* private use */
+		(0x0f0000 <= r && r <= 0x0ffffd) ||
+		(0x100000 <= r && r <= 0x10fffd) ||
+
+		(0x00d800 <= r && r <= 0x00dfff)     /* surrogates */
+	);
+}
+
+
+/*
  * Fill `s` with a printable representation of `r` and return the
  * width of the character.  The tab characters are converted to
  * spaces as if it was at the column `col`.
@@ -192,44 +218,22 @@ getutf(long **r, FILE *f)
 int
 runetoprint(char *s, long r, int col)
 {
-	/* invalid */
 	if (r < 0) {
-		sprintf(s, "[%02x]", (unsigned char) -r);
+		return sprintf(s, "[%02x]", (unsigned char) -r);
+
+	} else if (r == 0x7f || r < ' ') {
+		return sprintf(s, "[%02lx]", r);
+
+	} else if (!isprintrune(r)) {
+		return sprintf(s, "[%04lx]", r);
 
 	} else if (r == '\t') {
 		int i;
-		for (i = 0; i < (col + 1) % 8 - 1; i++)
+		for (i = 1; (col + i) % 8 != 0; i++)
 			s[i] = ' ';
-		s[i] = '\0'; s[0] = '|';
+		s[0] = ' '; s[i] = '\0';
+		return i;
 
-	/* ascii control */
-	} else if (r == 0x7f || r < ' ') {
-		sprintf(s, "[%02lx]", r);
-
-	/* utf-8 but not printable */
-	} else if (
-		/* unicode control */
-		(0x80 <= r && r < 0xa0)          ||
-
-		/* outside range */
-		(r > 0x10ffff)                   ||
-
-		/* noncharacters */
-		(r % 0x010000 == 0x00fffe)       ||
-		(r % 0x010000 == 0x00ffff)       ||
-		(0x00fdd0 <= r && r <= 0x00fdef) ||
-
-		/* private use */
-		(0x00e000 <= r && r <= 0x00f8ff) ||
-		(0x0f0000 <= r && r <= 0x0ffffd) ||
-		(0x100000 <= r && r <= 0x10fffd) ||
-
-		/* surrogates */
-		(0x00d800 <= r && r <= 0x00dfff)
-	) {
-		sprintf(s, "[%04x]", (unsigned int) r);
-
-	/* valid unicode characters */
 	} else {
 		runetoutf(s, r);
 		return 1;
