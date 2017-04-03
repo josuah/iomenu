@@ -119,14 +119,14 @@ utftorune(long *r, char *s, int n)
  * Return the length of `i`.
  */
 size_t
-utftorunes(long *runev, char *utf, size_t n)
+utftorunes(long *runes, char *utf, size_t n)
 {
 	size_t i, j;
 
 	for (i = 0, j = 0; n > 0; i++)
-		j += utftorune(runev + i, utf[j], n - j);
+		j += utftorune(runes + i, utf + j, n - j);
 
-	runev[i] = '\0';
+	runes[i] = '\0';
 	return i;
 }
 
@@ -200,7 +200,7 @@ runetoprint(char *s, long r)
 	} else if (r == 0x7f || r < ' ') {
 		return sprintf(s, "[%02lx]", r);
 
-	} else if (!isprintrune(r)) {
+	} else if (!runeisprint(r)) {
 		return sprintf(s, "[%04lx]", r);
 
 	} else {
@@ -219,10 +219,11 @@ runetoprint(char *s, long r)
  * Returns 1 if the rune is a printable character and 0 if not.
  */
 int
-isprintrune(long r)
+runeisprint(long r)
 {
 	return !(
-		(r < ' ' || r == 0x7f)           ||  /* ascii control */
+		(r != '\t' && r < ' ')           ||  /* ascii control */
+		(r == 0x7f)                      ||
 
 		(0x80 <= r && r < 0xa0)          ||  /* unicode control */
 
@@ -267,7 +268,7 @@ getrunes(long **r, FILE *f)
 	(*r)[rlen] = '\0';
 
 	free(s);
-	return feof(f) ? -1 : rlen;
+	if (feof(f)) return -1; else return rlen;
 }
 
 
@@ -317,7 +318,7 @@ main()
 	long *r;
 	int len, i;
 
-	for (len = 0; (len = getutf(&r, stdin)) >= 0 && !feof(stdin); free(r)) {
+	for (len = 0; (len = getrunes(&r, stdin)) >= 0 && !feof(stdin); free(r)) {
 		for (i = 0; i < len; i++) {
 			runetoprint(s, r[i]);
 			fputs(s, stdout);

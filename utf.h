@@ -1,16 +1,18 @@
-/* rune / utf length */
+/* lengths */
 int    utflen(char *, int);
 int    runelen(long);
 
-/* conversion */
+/* conversions */
+int    utftorune(long *, char *, int);
 int    utftorune(long *, char *, int);
 int    runetoutf(char *, long);
 int    runetoprint(char *, long);
 
-/* input/output */
-
-size_t getutf(long **, FILE *);
 
 /* standard library */
+
 int    runeisprint(long);
-long  *runestrcpy();
+size_t getrunes(long **, FILE *);
+long * runescpy(long *, long *);
+long * runeschr(long *, long);
+long * runescat(long *, long *);
