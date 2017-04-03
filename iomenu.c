@@ -413,6 +413,10 @@ input_key(void)
 		break;
 
 	case CONTROL('J'):
+		fputws(input, stdout);
+		putwchar('\n');
+		return EXIT_SUCCESS;
+
 	case CONTROL('M'):  /* enter */
 		print_selection();
 		return EXIT_SUCCESS;
