@@ -11,7 +11,7 @@
 #include <sys/ioctl.h>
 
 
-#define OFFSET    30  /* in horizontal mode, amount of space kept for writing */
+#define OFFSET    40  /* in horizontal mode, amount of space kept for writing */
 #define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
 #define CONTROL(char) (char ^ 0x40)
