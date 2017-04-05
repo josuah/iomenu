@@ -412,12 +412,8 @@ input_key(void)
 		print_selection();
 		break;
 
-	case CONTROL('J'):
-		fputws(input, stdout);
-		putwchar('\n');
-		return EXIT_SUCCESS;
-
-	case CONTROL('M'):  /* enter */
+	case CONTROL('J'):  /* enter */
+	case CONTROL('M'):
 		print_selection();
 		return EXIT_SUCCESS;
 
