@@ -251,7 +251,7 @@ print_screen(void)
 {
 	extern wchar_t formatted[BUFSIZ * 8];
 
-	int cols = opt_l || matchc == 0 ? ws.ws_col : OFFSET - 3;
+	int cols = opt_l || matchc == 0 ? ws.ws_col - 2 : OFFSET - 3;
 
 	fputws(L"\r\033[K", stderr);
 
@@ -274,13 +274,12 @@ print_screen(void)
 		for (int i = 0; formatted[i]; i++)
 			fputwc(formatted[i], stderr);
 		fputws(L" \033[m", stderr);
-		cols -= wcslen(formatted) + 3;
+		cols -= wcslen(formatted) + 1;
 	}
 
 	fputwc(L' ', stderr);
 
 	/* input */
-	cols = (opt_l || matchc == 0 ? cols : MAX(OFFSET, cols) - 3);
 	format(input, cols);
 	fputws(formatted, stderr);
 
