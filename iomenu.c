@@ -15,7 +15,6 @@
 
 #define CONTROL(char) (char ^ 0x40)
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
-#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 static struct winsize ws;
 static struct termios termios;
@@ -25,7 +24,7 @@ static int     current = 0, offset = 0, prev = 0, next = 0;
 static int     linec = 0,      matchc = 0;
 static char  **linev = NULL, **matchv = NULL;
 static char    input[BUFSIZ], formatted[BUFSIZ * 8];
-static int     opt_l = 20, opt_tb = 0;
+static int     opt_tb = 0, opt_l = 255;
 static char   *opt_p = "", opt_s = '\0';
 
 
@@ -193,7 +192,7 @@ print_lines(int count)
 		print_string(matchv[i], i == current);
 	}
 
-	while (p++ <= count)
+	while (p++ < count)
 		fputs("\n\033[K", stderr);
 }
 
@@ -208,9 +207,9 @@ print_screen(void)
 	fputs("\r\033[K", stderr);
 
 	/* items */
-	int count = MIN(opt_l, ws.ws_row - 2);
+	int count = MIN(opt_l, ws.ws_row - 1);
 	print_lines(count);
-	fprintf(stderr, "\033[%dA", count + 1);
+	fprintf(stderr, "\033[%dA", count);
 
 	fputs("\r", stderr);
 
@@ -432,6 +431,7 @@ int
 main(int argc, char *argv[])
 {
 	extern char *opt_p;
+	extern int opt_l;
 
 	int exit_code;
 
