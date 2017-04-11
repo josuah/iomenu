@@ -17,7 +17,6 @@
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
-
 static struct winsize ws;
 static struct termios termios;
 int   tty_fd;
@@ -27,7 +26,7 @@ static int     linec = 0,      matchc = 0;
 static char  **linev = NULL, **matchv = NULL;
 static char    input[BUFSIZ], formatted[BUFSIZ * 8];
 static int     opt_l = 0, opt_tb = 0;
-static char   *opt_p = "";
+static char   *opt_p = "", opt_s = '\0';
 
 
 static void
@@ -130,7 +129,7 @@ read_lines(void)
 				die("realloc");
 		}
 
-		linev[linec] = matchv[matchc] = malloc(len);
+		linev[linec] = matchv[matchc] = malloc(len + 1);
 		if (linev[linec] == NULL)
 			die("malloc");
 
@@ -165,8 +164,12 @@ format(char *str, int cols)
 		if (str[i] == '\t') {
 			for (int t = (j + 7) % 8 + 1; t > 0 && j < cols; t--)
 				formatted[j++] = ' ';
-		} else {
+
+		} else if (isprint(str[i])) {
 			formatted[j++] = str[i];
+
+		} else {
+			formatted[j++] = '?';
 		}
 	}
 
@@ -177,10 +180,17 @@ format(char *str, int cols)
 
 
 static void
-print_string(char *str, int current)
+print_string(char *str, int iscurrent)
 {
-	fputs(current   ? "\033[30;47m" : "", stderr);
+	extern int opt_l;
+	extern char opt_s;
+
+	fputs(iscurrent ? "\033[30;47m" : "", stderr);
 	fputs(opt_l ? "\033[K " : " ", stderr);
+
+	if (opt_s && str[0] == '#')
+		fputs("\033[1;30m", stderr);
+
 	fputs(format(str, ws.ws_col - 2), stderr);
 	fputs(" \033[m", stderr);
 }
@@ -289,11 +299,29 @@ print_screen(void)
 static int
 match_line(char *line, char **tokv, int tokc)
 {
+	if (opt_s && line[0] == opt_s)
+		return 2;
+
 	for (int i = 0; i < tokc; i++)
 		if (strstr(line, tokv[i]) == NULL)
 			return 0;
 
 	return 1;
+}
+
+
+static void
+move_line(signed int count)
+{
+	extern int    current;
+	extern char **matchv;
+
+	for (int i = current + count; 0 <= i && i < matchc; i += count) {
+		if (!opt_s || matchv[i][0] != opt_s) {
+			current = i;
+			break;
+		}
+	}
 }
 
 
@@ -325,6 +353,9 @@ filter_lines(void)
 			matchv[matchc++] = linev[i];
 
 	free(tokv);
+
+	if (opt_s && matchv[current][0] == opt_s)
+		move_line(+1);
 }
 
 
@@ -361,9 +392,16 @@ add_character(char key)
 static void
 print_selection(void)
 {
+	extern int    current;
+	extern char **matchv, input[BUFSIZ];
+
 	fputs("\r\033[K", stderr);
-	fputs(matchc > 0 ? matchv[current] : input, stdout);
-	fputc('\n', stdout);
+
+	if (matchc == 0 || (opt_s && matchv[current][0] == opt_s)) {
+		puts(input);
+	} else {
+		puts(matchv[current]);
+	}
 }
 
 
@@ -393,11 +431,11 @@ input_key(void)
 		break;
 
 	case CONTROL('N'):
-		current += current < matchc - 1 ? 1 : 0;
+		move_line(+1);
 		break;
 
 	case CONTROL('P'):
-		current -= current > 0 ? 1 : 0;
+		move_line(-1);
 		break;
 
 	case CONTROL('I'):  /* tab */
@@ -446,7 +484,7 @@ input_get(void)
 static void
 usage(void)
 {
-	fputs("usage: iomenu [-b] [-t] [-l lines] [-p prompt]\n", stderr);
+	fputs("usage: iomenu [-b] [-t] [-s] [-l lines] [-p prompt]\n", stderr);
 
 	exit(EXIT_FAILURE);
 }
@@ -478,6 +516,10 @@ main(int argc, char *argv[])
 			opt_p = argv[i];
 			break;
 
+		case 's':
+			opt_s = '#';
+			break;
+
 		default:
 			usage();
 		}
@@ -485,6 +527,7 @@ main(int argc, char *argv[])
 
 	setlocale(LC_ALL, "");
 	read_lines();
+	filter_lines();
 
 	if (!freopen("/dev/tty", "r", stdin) ||
 	    !freopen("/dev/tty", "w", stderr))
