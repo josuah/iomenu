@@ -25,7 +25,7 @@ static int     current = 0, offset = 0, prev = 0, next = 0;
 static int     linec = 0,      matchc = 0;
 static char  **linev = NULL, **matchv = NULL;
 static char    input[BUFSIZ], formatted[BUFSIZ * 8];
-static int     opt_l = 0, opt_tb = 0;
+static int     opt_l = 20, opt_tb = 0;
 static char   *opt_p = "", opt_s = '\0';
 
 
@@ -138,19 +138,6 @@ read_lines(void)
 }
 
 
-static int
-string_width(char *str)
-{
-	int len = 0;
-
-	for (int i = 0; str[i]; i++, len++)
-		if (str[i] == '\t')
-			len += (len + 7) % 8;
-
-	return len;
-}
-
-
 /*
  * Prepare a string for printing.
  */
@@ -185,8 +172,7 @@ print_string(char *str, int iscurrent)
 	extern int opt_l;
 	extern char opt_s;
 
-	fputs(iscurrent ? "\033[30;47m" : "", stderr);
-	fputs(opt_l ? "\033[K " : " ", stderr);
+	fputs(iscurrent ? "\033[30;47m\033[K " : "\033[K ", stderr);
 
 	if (opt_s && str[0] == '#')
 		fputs("\033[1;30m", stderr);
@@ -212,49 +198,6 @@ print_lines(int count)
 }
 
 
-static int
-prev_page(int pos, int cols)
-{
-	pos -= pos > 0 ? 1 : 0;
-	for (int col = 0; pos > 0; pos--)
-		if ((col += string_width(matchv[pos]) + 2) > cols)
-			return pos + 1;
-	return pos;
-}
-
-
-static int
-next_page(int pos, int cols)
-{
-	for (int col = 0; pos < matchc; pos++)
-		if ((col += string_width(matchv[pos]) + 2) > cols)
-			return pos;
-	return pos;
-}
-
-
-static void
-print_columns(void)
-{
-	if (current < offset) {
-		next = offset;
-		offset = prev_page(offset, ws.ws_col - OFFSET - 4);
-
-	} else if (current >= next) {
-		offset = next;
-		next = next_page(offset, ws.ws_col - OFFSET - 4);
-	}
-
-	fputs(offset > 0 ? "< " : "  ", stderr);
-
-	for (int i = offset; i < next && i < matchc; i++)
-		print_string(matchv[i], i == current);
-
-	if (next < matchc)
-		fprintf(stderr, "\033[%dC>", ws.ws_col - OFFSET);
-}
-
-
 static void
 print_screen(void)
 {
@@ -265,14 +208,9 @@ print_screen(void)
 	fputs("\r\033[K", stderr);
 
 	/* items */
-	if (opt_l) {
-		int count = MIN(opt_l, ws.ws_row - 2);
-		print_lines(count);
-		fprintf(stderr, "\033[%dA", count + 1);
-	} else {
-		fprintf(stderr, "\033[%dC", OFFSET);
-		print_columns();
-	}
+	int count = MIN(opt_l, ws.ws_row - 2);
+	print_lines(count);
+	fprintf(stderr, "\033[%dA", count + 1);
 
 	fputs("\r", stderr);
 
