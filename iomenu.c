@@ -10,7 +10,7 @@
 #include <sys/ioctl.h>
 
 
-#define OFFSET    40  /* in horizontal mode, amount of space kept for writing */
+#define MARGIN    4   /* amount of space at the left and right of the feed */
 #define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
 #define CONTROL(char) (char ^ 0x40)
@@ -143,6 +143,8 @@ read_lines(void)
 static char *
 format(char *str, int cols)
 {
+	extern char formatted[BUFSIZ * 8];
+
 	int j = 0;
 
 	for (int i = 0; str[i] && j < cols; i++) {
@@ -166,30 +168,24 @@ format(char *str, int cols)
 
 
 static void
-print_string(char *str, int iscurrent)
+print_lines(int count)
 {
 	extern int opt_l;
 	extern char opt_s;
 
-	fputs(iscurrent ? "\033[30;47m\033[K " : "\033[K ", stderr);
-
-	if (opt_s && str[0] == '#')
-		fputs("\033[1;30m", stderr);
-
-	fputs(format(str, ws.ws_col - 2), stderr);
-	fputs(" \033[m", stderr);
-}
-
-
-static void
-print_lines(int count)
-{
 	int p = 0;  /* amount of lines printed */
 	offset = current / count * count;
 
 	for (int i = offset; p < count && i < matchc; p++, i++) {
 		fputc('\n', stderr);
-		print_string(matchv[i], i == current);
+
+		fputs(i == current ? "\033[30;47m\033[K" : "\033[K", stderr);
+
+		fprintf(stderr,
+		        opt_s && matchv[i][0] == '#' ? "\033[1m%s" : "    %s",
+		        format(matchv[i], ws.ws_col - 2 * MARGIN));
+
+		fputs(" \033[m", stderr);
 	}
 
 	while (p++ < count)
@@ -202,7 +198,7 @@ print_screen(void)
 {
 	extern char formatted[BUFSIZ * 8];
 
-	int cols = opt_l || matchc == 0 ? ws.ws_col - 2 : OFFSET - 3;
+	int cols = ws.ws_col - MARGIN;
 
 	fputs("\r\033[K", stderr);
 
@@ -226,8 +222,7 @@ print_screen(void)
 	fputc(' ', stderr);
 
 	/* input */
-	format(input, cols);
-	fputs(formatted, stderr);
+	fputs(format(input, cols), stderr);
 
 	fflush(stderr);
 }
