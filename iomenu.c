@@ -10,7 +10,6 @@
 #include <sys/ioctl.h>
 
 
-#define MARGIN    4   /* amount of space at the left and right of the feed */
 #define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
 #define CONTROL(char) (char ^ 0x40)
@@ -177,15 +176,15 @@ print_lines(int count)
 	offset = current / count * count;
 
 	for (int i = offset; p < count && i < matchc; p++, i++) {
-		fputc('\n', stderr);
+		char *s = format(matchv[i], ws.ws_col - 1);
 
-		fputs(i == current ? "\033[30;47m\033[K" : "\033[K", stderr);
-
-		fprintf(stderr,
-		        opt_s && matchv[i][0] == '#' ? "\033[1m%s" : "    %s",
-		        format(matchv[i], ws.ws_col - 2 * MARGIN));
-
-		fputs(" \033[m", stderr);
+		if (opt_s && matchv[i][0] == '#') {
+			fprintf(stderr, "\n\033[1m\033[K %s\033[m", s);
+		} else if (i == current) {
+			fprintf(stderr, "\n\033[30;47m\033[K %s\033[m", s);
+		} else {
+			fprintf(stderr, "\n\033[K %s\033[m", s);
+		}
 	}
 
 	while (p++ < count)
@@ -198,7 +197,7 @@ print_screen(void)
 {
 	extern char formatted[BUFSIZ * 8];
 
-	int cols = ws.ws_col - MARGIN;
+	int cols = ws.ws_col - 1;
 
 	fputs("\r\033[K", stderr);
 
