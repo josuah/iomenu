@@ -14,11 +14,9 @@
 .
 .
 .Nm
+.Op Fl tbs
 .Op Fl l Ar lines
 .Op Fl p Ar prompt
-.Op Fl b
-.Op Fl s
-.Op Fl t
 .
 .
 .Sh DESCRIPTION
@@ -48,14 +46,14 @@ lines.
 Set the prompt to display at the beginning of the input to
 .Ar prompt .
 .
-.It Fl t
+.It Fl s
 If a line starts with
 .Li # ,
 .Nm
 will interprete it as a header, which always matches, and can not be
 printed.
 .
-.It Fl t / Fl b
+.It Fl t Ns / Ns Fl b
 Print the menu at the top / bottom rather than at current cursor
 position.
 Reset the cursor postition afterward.
@@ -69,11 +67,8 @@ An active selection is highlighted, and can be controlled with keybindings.
 .It Ic ^P Ns , Ic ^N
 Move selection to the previous/next item.
 .
-.It Ic ^M Ns , Ic Enter
+.It Ic ^M Ns , Ic ^J Ns , Ic Enter
 Print the selection to the standard output, and exit 0.
-.
-.It Ic ^J
-Print the current input to the standard output, and exit 0.
 .
 .It Ic ^Y
 Print the selection to the standard output but
