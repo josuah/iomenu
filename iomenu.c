@@ -443,13 +443,13 @@ usage(void)
 int
 main(int argc, char *argv[])
 {
-	extern char *opt_p;
+	extern char *opt_p, *argv0;
 	extern int opt_l;
 
 	int exit_code;
 
-	for (argv0 = argv[0], argv++, argc--; argc > 0; argv++, argc++) {
-		if ((*argv)[0] != '-' || (*argv)[1] == '\0' || (*argv)[2] != '\0')
+	for (argv0 = argv[0], argv++, argc--; argc > 0; argv++, argc--) {
+		if (argv[0][0] != '-')
 			usage();
 
 		switch ((*argv)[1]) {
