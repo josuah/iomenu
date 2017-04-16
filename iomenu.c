@@ -175,7 +175,7 @@ print_lines(int count)
 
 	int printed = 0, i = current / count * count;
 
-	while (printed++ < count && i < matchc) {
+	while (printed < count && i < matchc) {
 		char *s = format(matchv[i], ws.ws_col - 1);
 
 		if (opt_s && matchv[i][0] == '#') {
@@ -186,7 +186,7 @@ print_lines(int count)
 			fprintf(stderr, "\n\033[K %s\033[m", s);
 		}
 
-		i++;
+		i++; printed++;
 	}
 
 	while (printed++ < count)
