@@ -149,7 +149,7 @@ format(char *str, int cols)
 	for (i = j = 0; str[i] && j < cols; i++) {
 
 		if (str[i] == '\t') {
-			int t = (j + 7) % 8 + 1;
+			int t = 8 - j % 8;
 			while (t-- > 0 && j < cols)
 				formatted[j++] = ' ';
 
