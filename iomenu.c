@@ -12,19 +12,20 @@
 
 #define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
-#define CONTROL(char) (char ^ 0x40)
-#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+#define  CONTROL(char) (char ^ 0x40)
+#define  MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
 
 static struct winsize ws;
 static struct termios termios;
 int   tty_fd;
 
-static int     current = 0, offset = 0, prev = 0, next = 0;
-static int     linec = 0,      matchc = 0;
-static char  **linev = NULL, **matchv = NULL;
-static char    input[BUFSIZ], formatted[BUFSIZ * 8];
-static int     opt_tb = 0, opt_l = 255;
-static char   *opt_p = "", opt_s = '\0';
+static int  current = 0, offset = 0, prev = 0, next = 0;
+static int    linec = 0,      matchc = 0;
+static char **linev = NULL, **matchv = NULL;
+static char input[BUFSIZ], formatted[BUFSIZ * 8];
+static int  opt_tb = 0, opt_l = 255, opt_h = 0;
+static char *argv0, *opt_p = "", opt_s = '\0';
 
 
 static void
@@ -87,8 +88,10 @@ reset_terminal(void)
 	extern struct termios termios;
 	extern struct winsize ws;
 
+	int i;
+
 	/* clear terminal */
-	for (int i = 0; i < opt_l + 1; i++)
+	for (i = 0; i < opt_l + 1; i++)
 		fputs("\r\033[K\n", stderr);
 
 	/* reset cursor position */
@@ -136,20 +139,18 @@ read_lines(void)
 }
 
 
-/*
- * Prepare a string for printing.
- */
 static char *
 format(char *str, int cols)
 {
 	extern char formatted[BUFSIZ * 8];
 
-	int j = 0;
+	int i, j;
 
-	for (int i = 0; str[i] && j < cols; i++) {
+	for (i = j = 0; str[i] && j < cols; i++) {
 
 		if (str[i] == '\t') {
-			for (int t = (j + 7) % 8 + 1; t > 0 && j < cols; t--)
+			int t = (j + 7) % 8 + 1;
+			while (t-- > 0 && j < cols)
 				formatted[j++] = ' ';
 
 		} else if (isprint(str[i])) {
@@ -172,10 +173,9 @@ print_lines(int count)
 	extern int opt_l;
 	extern char opt_s;
 
-	int p = 0;  /* amount of lines printed */
-	offset = current / count * count;
+	int printed = 0, i = current / count * count;
 
-	for (int i = offset; p < count && i < matchc; p++, i++) {
+	while (printed++ < count && i < matchc) {
 		char *s = format(matchv[i], ws.ws_col - 1);
 
 		if (opt_s && matchv[i][0] == '#') {
@@ -185,9 +185,11 @@ print_lines(int count)
 		} else {
 			fprintf(stderr, "\n\033[K %s\033[m", s);
 		}
+
+		i++;
 	}
 
-	while (p++ < count)
+	while (printed++ < count)
 		fputs("\n\033[K", stderr);
 }
 
@@ -197,12 +199,12 @@ print_screen(void)
 {
 	extern char formatted[BUFSIZ * 8];
 
-	int cols = ws.ws_col - 1;
+	int cols = ws.ws_col - 1, i;
+	int count = MIN(opt_l, ws.ws_row - 1);
 
 	fputs("\r\033[K", stderr);
 
 	/* items */
-	int count = MIN(opt_l, ws.ws_row - 1);
 	print_lines(count);
 	fprintf(stderr, "\033[%dA", count);
 
@@ -212,7 +214,7 @@ print_screen(void)
 	if (opt_p[0] != '\0') {
 		format(opt_p, cols);
 		fputs("\033[30;47m ", stderr);
-		for (int i = 0; formatted[i]; i++)
+		for (i = 0; formatted[i]; i++)
 			fputc(formatted[i], stderr);
 		fputs(" \033[m", stderr);
 		cols -= strlen(formatted) + 1;
@@ -233,8 +235,8 @@ match_line(char *line, char **tokv, int tokc)
 	if (opt_s && line[0] == opt_s)
 		return 2;
 
-	for (int i = 0; i < tokc; i++)
-		if (strstr(line, tokv[i]) == NULL)
+	while (tokc-- > 0)
+		if (strstr(line, tokv[tokc]) == NULL)
 			return 0;
 
 	return 1;
@@ -247,7 +249,9 @@ move_line(signed int count)
 	extern int    current;
 	extern char **matchv;
 
-	for (int i = current + count; 0 <= i && i < matchc; i += count) {
+	int i;
+
+	for (i = current + count; 0 <= i && i < matchc; i += count) {
 		if (!opt_s || matchv[i][0] != opt_s) {
 			current = i;
 			break;
@@ -260,7 +264,7 @@ static void
 filter_lines(void)
 {
 	char **tokv = NULL, *s, buffer[sizeof (input)];
-	int       tokc = 0, n = 0;
+	int       tokc = 0, n = 0, i;
 
 	current = offset = prev = next = 0;
 
@@ -279,7 +283,7 @@ filter_lines(void)
 	}
 
 	matchc = 0;
-	for (int i = 0; i < linec; i++)
+	for (i = 0; i < linec; i++)
 		if (match_line(linev[i], tokv, tokc))
 			matchv[matchc++] = linev[i];
 
@@ -293,13 +297,13 @@ filter_lines(void)
 static void
 remove_word_input()
 {
-	int len = strlen(input) - 1;
+	int len = strlen(input) - 1, i;
 
-	for (int i = len; i >= 0 && isspace(input[i]); i--)
+	for (i = len; i >= 0 && isspace(input[i]); i--)
 		input[i] = '\0';
 
 	len = strlen(input) - 1;
-	for (int i = len; i >= 0 && !isspace(input[i]); i--)
+	for (i = len; i >= 0 && !isspace(input[i]); i--)
 		input[i] = '\0';
 
 	filter_lines();
@@ -326,13 +330,28 @@ print_selection(void)
 	extern int    current;
 	extern char **matchv, input[BUFSIZ];
 
-	fputs("\r\033[K", stderr);
+	/* header */
+	if (opt_h && opt_s) {
+		char **match = matchv + current;
 
+		while (--match >= matchv) {
+			if ((*match)[0] == opt_s) {
+				fputs(*match, stdout);
+				break;
+			}
+		}
+
+		putchar('\t');
+	}
+
+	/* input or selection */
 	if (matchc == 0 || (opt_s && matchv[current][0] == opt_s)) {
 		puts(input);
 	} else {
 		puts(matchv[current]);
 	}
+
+	fputs("\r\033[K", stderr);
 }
 
 
@@ -415,7 +434,7 @@ input_get(void)
 static void
 usage(void)
 {
-	fputs("usage: iomenu [-b] [-t] [-s] [-l lines] [-p prompt]\n", stderr);
+	fprintf(stderr, "%s [-b] [-t] [-s] [-l lines] [-p prompt]\n", argv0);
 
 	exit(EXIT_FAILURE);
 }
@@ -429,13 +448,14 @@ main(int argc, char *argv[])
 
 	int exit_code;
 
-	for (int i = 1; i < argc; i++) {
-		if (argv[i][0] != '-' || strlen(argv[i]) != 2)
+	for (argv0 = argv[0], argv++, argc--; argc > 0; argv++, argc++) {
+		if ((*argv)[0] != '-' || (*argv)[1] == '\0' || (*argv)[2] != '\0')
 			usage();
 
-		switch (argv[i][1]) {
+		switch ((*argv)[1]) {
 		case 'l':
-			if (++i >= argc || sscanf(argv[i], "%d", &opt_l) <= 0)
+			argv++; argc--;
+			if (argc == 0 || sscanf(*argv, "%d", &opt_l) <= 0)
 				usage();
 			break;
 
@@ -443,13 +463,18 @@ main(int argc, char *argv[])
 		case 'b': opt_tb = 'b'; break;
 
 		case 'p':
-			if (++i >= argc)
+			argc--; argv++;
+			if (argc == 0)
 				usage();
-			opt_p = argv[i];
+			opt_p = *argv;
 			break;
 
 		case 's':
 			opt_s = '#';
+			break;
+
+		case 'h':
+			opt_h = 1;
 			break;
 
 		default:
