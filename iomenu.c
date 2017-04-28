@@ -394,10 +394,6 @@ input_key(void)
 		filter_lines();
 		break;
 
-	case CONTROL('Y'):
-		print_selection();
-		break;
-
 	case CONTROL('J'):  /* enter */
 	case CONTROL('M'):
 		print_selection();
