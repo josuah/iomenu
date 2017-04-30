@@ -13,6 +13,7 @@
 #define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
 #define  CONTROL(char) (char ^ 0x40)
+#define  ALT(char) (char + 0x80)
 #define  MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 
@@ -178,7 +179,7 @@ print_lines(int count)
 	while (printed < count && i < matchc) {
 		char *s = format(matchv[i], ws.ws_col - 1);
 
-		if (opt_s && matchv[i][0] == '#') {
+		if (opt_s && matchv[i][0] == opt_s) {
 			fprintf(stderr, "\n\033[1m\033[K %s\033[m", s);
 		} else if (i == current) {
 			fprintf(stderr, "\n\033[30;47m\033[K %s\033[m", s);
@@ -244,14 +245,14 @@ match_line(char *line, char **tokv, int tokc)
 
 
 static void
-move_line(signed int count)
+move_line(signed int n)
 {
 	extern int    current;
 	extern char **matchv;
 
 	int i;
 
-	for (i = current + count; 0 <= i && i < matchc; i += count) {
+	for (i = current + n; 0 <= i && i < matchc; i += n) {
 		if (!opt_s || matchv[i][0] != opt_s) {
 			current = i;
 			break;
@@ -358,8 +359,9 @@ print_selection(void)
 static int
 input_key(void)
 {
-	char key = fgetc(stdin);
+	int key = fgetc(stdin);
 
+top:
 	switch (key) {
 
 	case CONTROL('C'):
@@ -388,6 +390,14 @@ input_key(void)
 		move_line(-1);
 		break;
 
+	case CONTROL('V'):
+		move_line(ws.ws_row - 1);
+		break;
+
+	case ALT('v'):
+		move_line(-ws.ws_row + 1);
+		break;
+
 	case CONTROL('I'):  /* tab */
 		if (linec > 0)
 			strcpy(input, matchv[current]);
@@ -399,8 +409,15 @@ input_key(void)
 		print_selection();
 		return EXIT_SUCCESS;
 
+	case 033: /* escape / alt */
+		if (fgetc(stdin) == 'v') {
+			key = ALT('v');
+			goto top;
+		}
+		break;
+
 	default:
-		add_character(key);
+		add_character((char) key);
 	}
 
 	return CONTINUE;
