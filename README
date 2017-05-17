@@ -31,7 +31,7 @@ DESCRIPTION
      As printable keys are entered, the selection is filtered to match every
      word from the input.
 
-     ^H, Bakcspace    Remove last character from current input.
+     ^H, Backspace    Remove last character from current input.
 
      ^W               Remove last word from current input.
 
