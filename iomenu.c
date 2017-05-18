@@ -1,5 +1,6 @@
 #include <fcntl.h>
 #include <locale.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,10 +58,6 @@ static void
 set_terminal(void)
 {
 	struct termios new;
-
-	/* get window size */
-	if (ioctl(tty_fd, TIOCGWINSZ, &ws) < 0)
-		die("ioctl");
 
 	/* save cursor postition */
 	fputs("\033[s", stderr);
@@ -434,13 +431,27 @@ input_get(void)
 
 	input[0] = '\0';
 
-	print_screen();
 	while ((exit_code = input_key()) == CONTINUE)
 		print_screen();
 
 	tcsetattr(tty_fd, TCSANOW, &termios);
 
 	return exit_code;
+}
+
+
+static void
+sigwinch()
+{
+	extern struct winsize ws;
+
+	/* get window size */
+	if (ioctl(tty_fd, TIOCGWINSZ, &ws) < 0)
+		die("ioctl");
+
+	print_screen();
+
+	signal(SIGWINCH, sigwinch);
 }
 
 
@@ -505,6 +516,7 @@ main(int argc, char *argv[])
 	tty_fd =  open("/dev/tty", O_RDWR);
 
 	set_terminal();
+	sigwinch();
 	exit_code = input_get();  /* main loop */
 	reset_terminal();
 	close(tty_fd);
