@@ -26,10 +26,10 @@ DESCRIPTION
      An active selection is highlighted, and can be controlled with
      keybindings.
 
-     Ctrl + p, Ctrl + n
+     Up, Down, Ctrl + p, Ctrl + n
                       Move selection to the previous/next item.
 
-     Ctrl + v Ns, Alt + v
+     PageUp, PageDown, Alt + v, Ctrl + v
                       Move one page up or down.
 
      Ctrl + m, Ctrl + j, Enter

@@ -16,6 +16,8 @@
 #define  ALT(char) (char + 0x80)
 #define  MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
+enum { KEY_UP = 0x81, KEY_DOWN, PG_UP, PG_DOWN };
+
 static struct winsize ws;
 static struct termios termios;
 static int            ttyfd;
@@ -339,20 +341,24 @@ top:
 		filter();
 		break;
 
-	case CONTROL('N'):
-		move(+1);
-		break;
-
+	case KEY_UP:
 	case CONTROL('P'):
 		move(-1);
 		break;
 
-	case CONTROL('V'):
-		movepg(+1);
+	case KEY_DOWN:
+	case CONTROL('N'):
+		move(+1);
 		break;
 
+	case PG_UP:
 	case ALT('v'):
 		movepg(-1);
+		break;
+
+	case PG_DOWN:
+	case CONTROL('V'):
+		movepg(+1);
 		break;
 
 	case CONTROL('I'):  /* tab */
@@ -365,6 +371,26 @@ top:
 	case CONTROL('M'):
 		printselection();
 		return EXIT_SUCCESS;
+
+	case ALT('['):
+		switch (fgetc(stdin)) {
+		case 'A':
+			key = KEY_UP;
+			goto top;
+		case 'B':
+			key = KEY_DOWN;
+			goto top;
+		case '5':
+			if (fgetc(stdin) == '~') {
+				key = PG_UP;
+				goto top;
+			}
+		case '6':
+			if (fgetc(stdin) == '~') {
+				key = PG_DOWN;
+				goto top;
+			}
+		}
 
 	case 033: /* escape / alt */
 		key = ALT(fgetc(stdin));
