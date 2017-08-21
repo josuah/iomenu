@@ -28,7 +28,8 @@ is an interactive filtering and selection tool for the terminal.
 .Pp
 .
 It reads lines from standard input, and prompt for a selection.
-The selected line(s) is(are) printed to standard output.
+The selected line is printed to standard output.
+.
 .Bl -tag -width XXXXXXXXXXXXXXXX
 .
 .It Fl l Ar lines
@@ -53,10 +54,16 @@ If a line starts with
 will interprete it as a header, which always matches, and can not be
 printed.
 .
+.Pp
 .
-.Ss Selection keybindings
+.
+.Sh KEY BINDINGS
+.
 .
 An active selection is highlighted, and can be controlled with keybindings.
+As printable keys are entered, the lines are filtered to match each
+word from the input.
+.
 .Bl -tag -width XXXXXXXXXXXXXXX
 .
 .It Ic Up Ns , Ic Down Ns , Ic Ctrl + p Ns , Ic Ctrl + n
@@ -67,16 +74,6 @@ Move one page up or down.
 .
 .It Ic Ctrl + m Ns , Ic Ctrl + j Ns , Ic Enter
 Print the selection to the standard output, and exit 0.
-.
-.El
-.
-.
-.Sh Text input
-.
-As printable keys are entered, the lines are filtered to match each
-word from the input.
-.
-.Bl -tag -width XXXXXXXXXXXXXXX
 .
 .It Ic Ctrl + h Ns , Ic Bakcspace
 Remove last character from current input.

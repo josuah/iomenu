@@ -1,7 +1,7 @@
-IOMENU(1)               FreeBSD General Commands Manual              IOMENU(1)
+IOMENU(1)                   General Commands Manual                  IOMENU(1)
 
 NAME
-     iomenu - interactive selection menu
+     iomenu – interactive selection menu
 
 SYNOPSIS
      iomenu [-#] [-l lines] [-p prompt]
@@ -10,7 +10,7 @@ DESCRIPTION
      iomenu is an interactive filtering and selection tool for the terminal.
 
      It reads lines from standard input, and prompt for a selection.  The
-     selected line(s) is(are) printed to standard output.
+     selected line is printed to standard output.
 
      -l lines          If lines is 0 or if -l is not set, the items are
                        displayed in an horizontal list.  Otherwise, in a
@@ -22,9 +22,10 @@ DESCRIPTION
      -#                If a line starts with #, iomenu will interprete it as a
                        header, which always matches, and can not be printed.
 
-   Selection keybindings
+KEY BINDINGS
      An active selection is highlighted, and can be controlled with
-     keybindings.
+     keybindings.  As printable keys are entered, the lines are filtered to
+     match each word from the input.
 
      Up, Down, Ctrl + p, Ctrl + n
                       Move selection to the previous/next item.
@@ -34,10 +35,6 @@ DESCRIPTION
 
      Ctrl + m, Ctrl + j, Enter
                       Print the selection to the standard output, and exit 0.
-
-Text input
-     As printable keys are entered, the lines are filtered to match each word
-     from the input.
 
      Ctrl + h, Bakcspace
                       Remove last character from current input.
@@ -49,7 +46,7 @@ Text input
      Ctrl + i, Tab    Fill the input with current selection.
 
 EXIT STATUS
-     The iomenu utility exits 0 on success, and >0 if an error occurs.
+     The iomenu utility exits 0 on success, and >0 if an error occurs.
 
 EXAMPLES
      Open a bookmark from a list in a text file:
@@ -86,4 +83,4 @@ AUTORS
      iomenu was written from scratch by Josuah Demangeon <mail@josuah.net>
      with the help of dmenu(1) and vis-menu(1) as models.
 
-FreeBSD 11.0-RELEASE-p1         August 21, 2017        FreeBSD 11.0-RELEASE-p1
+Void Linux                      August 21, 2017                     Void Linux
