@@ -54,7 +54,7 @@ setterminal(void)
 	struct termios new;
 
 	/* save cursor postition */
-	fputs("\x1b[s", stderr);
+	fputs("\033[s", stderr);
 
 	/* save attributes to `termios` */
 	if (tcgetattr(ttyfd, &termios) < 0 || tcgetattr(ttyfd, &new) < 0) {
@@ -74,10 +74,10 @@ resetterminal(void)
 
 	/* clear terminal */
 	for (i = 0; i < opt['l'] + 1; i++)
-		fputs("\r\x1b[K\n", stderr);
+		fputs("\r\033[K\n", stderr);
 
 	/* reset cursor position */
-	fputs("\x1b[u", stderr);
+	fputs("\033[u", stderr);
 
 	/* set terminal back to normal mode */
 	tcsetattr(ttyfd, TCSANOW, &termios);
@@ -151,44 +151,37 @@ printlines(int count)
 
 	while (printed < count && i < matchc) {
 
-		if (opt['#'] && matchv[i][0] == '#') {
-			char *s = format(matchv[i], ws.ws_col);
-			fprintf(stderr, "\n\x1b[1m\x1b[K%s\x1b[m", s + 1);
+		char *s = format(matchv[i], ws.ws_col - 1);
 
-		} else if (i == current) {
-			char *s = format(matchv[i], ws.ws_col - 3);
-			fprintf(stderr, "\n\x1b[30;47m\x1b[K   %s\x1b[m", s);
-
-		} else {
-			char *s = format(matchv[i], ws.ws_col - 3);
-			fprintf(stderr, "\n\x1b[K   %s", s);
-		}
+		if (opt['#'] && matchv[i][0] == '#')
+			fprintf(stderr, "\n\033[1m\033[K %s\033[m",     s);
+		else if (i == current)
+			fprintf(stderr, "\n\033[30;47m\033[K %s\033[m", s);
+		else
+			fprintf(stderr, "\n\033[K %s",                  s);
 
 		i++; printed++;
 	}
 
 	while (printed++ < count)
-		fputs("\n\x1b[K", stderr);
+		fputs("\n\033[K", stderr);
 }
 
 static void
 printscreen(void)
 {
-	int cols = ws.ws_col - 1, i;
+	int cols = ws.ws_col - 1;
 	int count = MIN(opt['l'], ws.ws_row - 1);
 
-	fputs("\r\x1b[K", stderr);
+	fputs("\r\033[K", stderr);
 
 	printlines(count);
-	fprintf(stderr, "\x1b[%dA\r", count);
+	fprintf(stderr, "\033[%dA\r", count);
 
 	if (*prompt) {
-		format(prompt, cols);
-		fputs("\x1b[30;47m ", stderr);
-		for (i = 0; formatted[i]; i++)
-			fputc(formatted[i], stderr);
-		fputs(" \x1b[m", stderr);
-		cols -= strlen(formatted) + 1;
+		format(prompt, cols - 2);
+		fprintf(stderr, "\033[30;47m %s \033[m", formatted);
+		cols -= strlen(formatted) + 2;
 	}
 
 	fputc(' ', stderr);
@@ -308,7 +301,7 @@ printselection(void)
 		puts(matchv[current]);
 	}
 
-	fputs("\r\x1b[K", stderr);
+	fputs("\r\033[K", stderr);
 }
 
 static int
@@ -364,7 +357,7 @@ top:
 		printselection();
 		return EXIT_SUCCESS;
 
-	case 0x1b: /* escape / alt */
+	case 033: /* escape / alt */
 		key = ALT(fgetc(stdin));
 		goto top;
 
