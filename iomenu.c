@@ -18,13 +18,13 @@
 
 static struct winsize ws;
 static struct termios termios;
-static int    ttyfd;
-static int    current = 0, offset = 0, prev = 0, next = 0;
-static int    linec = 0,      matchc = 0;
-static char **linev = NULL, **matchv = NULL;
-static char   input[BUFSIZ], formatted[BUFSIZ * 8];
-static int    opt[128];
-static char  *prompt = "";
+static int            ttyfd;
+static int            current = 0, offset = 0, prev = 0, next = 0;
+static int            linec = 0,      matchc = 0;
+static char         **linev = NULL, **matchv = NULL;
+static char           input[BUFSIZ], formatted[BUFSIZ * 8];
+static int            opt[128], rows = 0;
+static char          *prompt = "";
 
 static void
 freelines(void)
@@ -145,11 +145,11 @@ format(char *str, int cols)
 }
 
 static void
-printlines(int count)
+printlines(void)
 {
-	int printed = 0, i = current / count * count;
+	int printed = 0, i = current - current % rows;
 
-	while (printed < count && i < matchc) {
+	while (printed < rows && i < matchc) {
 
 		char *s = format(matchv[i], ws.ws_col - 1);
 
@@ -163,7 +163,7 @@ printlines(int count)
 		i++; printed++;
 	}
 
-	while (printed++ < count)
+	while (printed++ < rows)
 		fputs("\n\033[K", stderr);
 }
 
@@ -171,12 +171,11 @@ static void
 printscreen(void)
 {
 	int cols = ws.ws_col - 1;
-	int count = MIN(opt['l'], ws.ws_row - 1);
 
 	fputs("\r\033[K", stderr);
 
-	printlines(count);
-	fprintf(stderr, "\033[%dA\r", count);
+	printlines();
+	fprintf(stderr, "\033[%dA\r", rows);
 
 	if (*prompt) {
 		format(prompt, cols - 2);
@@ -204,16 +203,28 @@ matchline(char *line, char **tokv, int tokc)
 }
 
 static void
-move(signed int n)
+move(signed int sign)
 {
 	int i;
 
-	for (i = current + n; 0 <= i && i < matchc; i += n) {
+	for (i = current + sign; 0 <= i && i < matchc; i += sign) {
 		if (!opt['#'] || matchv[i][0] != '#') {
 			current = i;
 			break;
 		}
 	}
+}
+
+static void
+movepg(signed int sign)
+{
+	int i = current - current % rows + rows * sign;
+
+	if (0 > i || i > matchc)
+		return;
+
+	current = i - 1;
+	move(+1);
 }
 
 static void
@@ -280,7 +291,6 @@ addchar(char key)
 static void
 printselection(void)
 {
-	/* header */
 	if (opt['#']) {
 		char **match = matchv + current;
 
@@ -294,7 +304,6 @@ printselection(void)
 		putchar('\t');
 	}
 
-	/* input or selection */
 	if (matchc == 0 || (opt['#'] && matchv[current][0] == '#')) {
 		puts(input);
 	} else {
@@ -339,11 +348,11 @@ top:
 		break;
 
 	case CONTROL('V'):
-		move(ws.ws_row - 1);
+		movepg(+1);
 		break;
 
 	case ALT('v'):
-		move(-ws.ws_row + 1);
+		movepg(-1);
 		break;
 
 	case CONTROL('I'):  /* tab */
@@ -373,6 +382,8 @@ sigwinch()
 {
 	if (ioctl(ttyfd, TIOCGWINSZ, &ws) < 0)
 		die("ioctl");
+
+	rows = MIN(opt['l'], ws.ws_row - 1);
 	printscreen();
 
 	signal(SIGWINCH, sigwinch);

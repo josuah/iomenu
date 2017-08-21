@@ -54,36 +54,42 @@ will interprete it as a header, which always matches, and can not be
 printed.
 .
 .
-.Ss Selection control
+.Ss Selection keybindings
 .
 An active selection is highlighted, and can be controlled with keybindings.
 .Bl -tag -width XXXXXXXXXXXXXXX
 .
-.It Ic ^P Ns , Ic ^N
+.It Ic Ctrl + p Ns , Ic Ctrl + n
 Move selection to the previous/next item.
 .
-.It Ic ^M Ns , Ic ^J Ns , Ic Enter
+.It Ic Ctrl + v Ns, Ic Alt + v
+Move one page up or down.
+.
+.It Ic Ctrl + m Ns , Ic Ctrl + j Ns , Ic Enter
 Print the selection to the standard output, and exit 0.
 .
 .El
 .
-.Ss Input handling
 .
-As printable keys are entered, the selection is filtered to match every
+.Sh Text input
+.
+As printable keys are entered, the lines are filtered to match each
 word from the input.
+.
 .Bl -tag -width XXXXXXXXXXXXXXX
 .
-.It Ic ^H Ns , Ic Bakcspace
+.It Ic Ctrl + h Ns , Ic Bakcspace
 Remove last character from current input.
 .
-.It Ic ^W
+.It Ic Ctrl + w
 Remove last word from current input.
 .
-.It Ic ^U
+.It Ic Ctrl + u
 Remove the whole input string.
 .
-.It Ic ^I Ns , Ic Tab
+.It Ic Ctrl + i Ns , Ic Tab
 Fill the input with current selection.
+.
 .El
 .
 .

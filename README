@@ -1,7 +1,7 @@
-IOMENU(1)                   General Commands Manual                  IOMENU(1)
+IOMENU(1)               FreeBSD General Commands Manual              IOMENU(1)
 
 NAME
-     iomenu – interactive selection menu
+     iomenu - interactive selection menu
 
 SYNOPSIS
      iomenu [-#] [-l lines] [-p prompt]
@@ -22,28 +22,34 @@ DESCRIPTION
      -#                If a line starts with #, iomenu will interprete it as a
                        header, which always matches, and can not be printed.
 
-   Selection control
+   Selection keybindings
      An active selection is highlighted, and can be controlled with
      keybindings.
 
-     ^P, ^N           Move selection to the previous/next item.
+     Ctrl + p, Ctrl + n
+                      Move selection to the previous/next item.
 
-     ^M, ^J, Enter    Print the selection to the standard output, and exit 0.
+     Ctrl + v Ns, Alt + v
+                      Move one page up or down.
 
-   Input handling
-     As printable keys are entered, the selection is filtered to match every
-     word from the input.
+     Ctrl + m, Ctrl + j, Enter
+                      Print the selection to the standard output, and exit 0.
 
-     ^H, Bakcspace    Remove last character from current input.
+Text input
+     As printable keys are entered, the lines are filtered to match each word
+     from the input.
 
-     ^W               Remove last word from current input.
+     Ctrl + h, Bakcspace
+                      Remove last character from current input.
 
-     ^U               Remove the whole input string.
+     Ctrl + w         Remove last word from current input.
 
-     ^I, Tab          Fill the input with current selection.
+     Ctrl + u         Remove the whole input string.
+
+     Ctrl + i, Tab    Fill the input with current selection.
 
 EXIT STATUS
-     The iomenu utility exits 0 on success, and >0 if an error occurs.
+     The iomenu utility exits 0 on success, and >0 if an error occurs.
 
 EXAMPLES
      Open a bookmark from a list in a text file:
@@ -80,4 +86,4 @@ AUTORS
      iomenu was written from scratch by Josuah Demangeon <mail@josuah.net>
      with the help of dmenu(1) and vis-menu(1) as models.
 
-Void Linux                      August 21, 2017                     Void Linux
+FreeBSD 11.0-RELEASE-p1         August 21, 2017        FreeBSD 11.0-RELEASE-p1
