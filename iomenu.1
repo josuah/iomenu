@@ -1,4 +1,4 @@
-.Dd mar 19, 2017
+.Dd aug 21, 2017
 .Dt IOMENU 1
 .Os
 .
@@ -14,9 +14,7 @@
 .
 .
 .Nm
-.Op Fl t
-.Op Fl b
-.Op Fl s
+.Op Fl #
 .Op Fl l Ar lines
 .Op Fl p Ar prompt
 .
@@ -48,18 +46,13 @@ lines.
 Set the prompt to display at the beginning of the input to
 .Ar prompt .
 .
-.It Fl s
+.It Fl #
 If a line starts with
 .Li # ,
 .Nm
 will interprete it as a header, which always matches, and can not be
 printed.
 .
-.It Fl t Ns / Ns Fl b
-Print the menu at the top / bottom rather than at current cursor
-position.
-Reset the cursor postition afterward.
-.El
 .
 .Ss Selection control
 .

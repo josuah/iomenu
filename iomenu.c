@@ -10,25 +10,21 @@
 
 #include <sys/ioctl.h>
 
-
 #define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
 #define  CONTROL(char) (char ^ 0x40)
 #define  ALT(char) (char + 0x80)
 #define  MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
-
 static struct winsize ws;
 static struct termios termios;
-int   tty_fd;
-
-static int  current = 0, offset = 0, prev = 0, next = 0;
+static int    ttyfd;
+static int    current = 0, offset = 0, prev = 0, next = 0;
 static int    linec = 0,      matchc = 0;
 static char **linev = NULL, **matchv = NULL;
-static char input[BUFSIZ], formatted[BUFSIZ * 8];
-static int  opt_tb = 0, opt_l = 255, opt_h = 0;
-static char *argv0, *opt_p = "", opt_s = '\0';
-
+static char   input[BUFSIZ], formatted[BUFSIZ * 8];
+static int    opt[128];
+static char  *prompt = "";
 
 static void
 free_all(void)
@@ -42,17 +38,15 @@ free_all(void)
 		free(matchv);
 }
 
-
 static void
 die(const char *s)
 {
-	tcsetattr(tty_fd, TCSANOW, &termios);
-	close(tty_fd);
+	tcsetattr(ttyfd, TCSANOW, &termios);
+	close(ttyfd);
 	free_all();
 	perror(s);
 	exit(EXIT_FAILURE);
 }
-
 
 static void
 set_terminal(void)
@@ -62,43 +56,32 @@ set_terminal(void)
 	/* save cursor postition */
 	fputs("\033[s", stderr);
 
-	/* put cursor at the top / bottom */
-	switch (opt_tb) {
-	case 't': fputs("\033[H", stderr);                        break;
-	case 'b': fprintf(stderr, "\033[%dH", ws.ws_row - opt_l); break;
-	}
-
 	/* save attributes to `termios` */
-	if (tcgetattr(tty_fd, &termios) < 0 || tcgetattr(tty_fd, &new) < 0) {
+	if (tcgetattr(ttyfd, &termios) < 0 || tcgetattr(ttyfd, &new) < 0) {
 		perror("tcgetattr");
 		exit(EXIT_FAILURE);
 	}
 
 	/* change to raw mode */
 	new.c_lflag &= ~(ICANON | ECHO | IGNBRK);
-	tcsetattr(tty_fd, TCSANOW, &new);
+	tcsetattr(ttyfd, TCSANOW, &new);
 }
-
 
 static void
 reset_terminal(void)
 {
-	extern struct termios termios;
-	extern struct winsize ws;
-
 	int i;
 
 	/* clear terminal */
-	for (i = 0; i < opt_l + 1; i++)
+	for (i = 0; i < opt['l'] + 1; i++)
 		fputs("\r\033[K\n", stderr);
 
 	/* reset cursor position */
 	fputs("\033[u", stderr);
 
 	/* set terminal back to normal mode */
-	tcsetattr(tty_fd, TCSANOW, &termios);
+	tcsetattr(ttyfd, TCSANOW, &termios);
 }
-
 
 static void
 read_lines(void)
@@ -136,12 +119,9 @@ read_lines(void)
 	}
 }
 
-
 static char *
 format(char *str, int cols)
 {
-	extern char formatted[BUFSIZ * 8];
-
 	int i, j;
 
 	for (i = j = 0; str[i] && j < cols; i++) {
@@ -164,19 +144,15 @@ format(char *str, int cols)
 	return formatted;
 }
 
-
 static void
 print_lines(int count)
 {
-	extern int opt_l;
-	extern char opt_s;
-
 	int printed = 0, i = current / count * count;
 
 	while (printed < count && i < matchc) {
 		char *s = format(matchv[i], ws.ws_col - 1);
 
-		if (opt_s && matchv[i][0] == opt_s) {
+		if (opt['#'] && matchv[i][0] == '#') {
 			fprintf(stderr, "\n\033[1m\033[K %s\033[m", s);
 		} else if (i == current) {
 			fprintf(stderr, "\n\033[30;47m\033[K %s\033[m", s);
@@ -191,14 +167,11 @@ print_lines(int count)
 		fputs("\n\033[K", stderr);
 }
 
-
 static void
 print_screen(void)
 {
-	extern char formatted[BUFSIZ * 8];
-
 	int cols = ws.ws_col - 1, i;
-	int count = MIN(opt_l, ws.ws_row - 1);
+	int count = MIN(opt['l'], ws.ws_row - 1);
 
 	fputs("\r\033[K", stderr);
 
@@ -209,8 +182,8 @@ print_screen(void)
 	fputs("\r", stderr);
 
 	/* prompt */
-	if (opt_p[0] != '\0') {
-		format(opt_p, cols);
+	if (*prompt) {
+		format(prompt, cols);
 		fputs("\033[30;47m ", stderr);
 		for (i = 0; formatted[i]; i++)
 			fputc(formatted[i], stderr);
@@ -226,11 +199,10 @@ print_screen(void)
 	fflush(stderr);
 }
 
-
 static int
 match_line(char *line, char **tokv, int tokc)
 {
-	if (opt_s && line[0] == opt_s)
+	if (opt['#'] && line[0] == '#')
 		return 2;
 
 	while (tokc-- > 0)
@@ -240,23 +212,18 @@ match_line(char *line, char **tokv, int tokc)
 	return 1;
 }
 
-
 static void
 move_line(signed int n)
 {
-	extern int    current;
-	extern char **matchv;
-
 	int i;
 
 	for (i = current + n; 0 <= i && i < matchc; i += n) {
-		if (!opt_s || matchv[i][0] != opt_s) {
+		if (!opt['#'] || matchv[i][0] != '#') {
 			current = i;
 			break;
 		}
 	}
 }
-
 
 static void
 filter_lines(void)
@@ -287,10 +254,9 @@ filter_lines(void)
 
 	free(tokv);
 
-	if (opt_s && matchv[current][0] == opt_s)
+	if (opt['#'] && matchv[current][0] == '#')
 		move_line(+1);
 }
-
 
 static void
 remove_word_input()
@@ -307,7 +273,6 @@ remove_word_input()
 	filter_lines();
 }
 
-
 static void
 add_character(char key)
 {
@@ -321,19 +286,15 @@ add_character(char key)
 	filter_lines();
 }
 
-
 static void
 print_selection(void)
 {
-	extern int    current;
-	extern char **matchv, input[BUFSIZ];
-
 	/* header */
-	if (opt_h && opt_s) {
+	if (opt['#']) {
 		char **match = matchv + current;
 
 		while (--match >= matchv) {
-			if ((*match)[0] == opt_s) {
+			if ((*match)[0] == '#') {
 				fputs(*match, stdout);
 				break;
 			}
@@ -343,7 +304,7 @@ print_selection(void)
 	}
 
 	/* input or selection */
-	if (matchc == 0 || (opt_s && matchv[current][0] == opt_s)) {
+	if (matchc == 0 || (opt['#'] && matchv[current][0] == '#')) {
 		puts(input);
 	} else {
 		puts(matchv[current]);
@@ -351,7 +312,6 @@ print_selection(void)
 
 	fputs("\r\033[K", stderr);
 }
-
 
 static int
 input_key(void)
@@ -407,11 +367,8 @@ top:
 		return EXIT_SUCCESS;
 
 	case 033: /* escape / alt */
-		if (fgetc(stdin) == 'v') {
-			key = ALT('v');
-			goto top;
-		}
-		break;
+		key = ALT(fgetc(stdin));
+		goto top;
 
 	default:
 		add_character((char) key);
@@ -419,7 +376,6 @@ top:
 
 	return CONTINUE;
 }
-
 
 /*
  * Listen for the user input and call the appropriate functions.
@@ -434,71 +390,56 @@ input_get(void)
 	while ((exit_code = input_key()) == CONTINUE)
 		print_screen();
 
-	tcsetattr(tty_fd, TCSANOW, &termios);
+	tcsetattr(ttyfd, TCSANOW, &termios);
 
 	return exit_code;
 }
 
-
 static void
 sigwinch()
 {
-	extern struct winsize ws;
-
-	/* get window size */
-	if (ioctl(tty_fd, TIOCGWINSZ, &ws) < 0)
+	if (ioctl(ttyfd, TIOCGWINSZ, &ws) < 0)
 		die("ioctl");
-
 	print_screen();
 
 	signal(SIGWINCH, sigwinch);
 }
 
-
 static void
 usage(void)
 {
-	fprintf(stderr, "%s [-b] [-t] [-s] [-l lines] [-p prompt]\n", argv0);
-
+	fputs("iomenu [-#] [-l lines] [-p prompt]\n", stderr);
 	exit(EXIT_FAILURE);
 }
-
 
 int
 main(int argc, char *argv[])
 {
-	extern char *opt_p, *argv0;
-	extern int opt_l;
-
 	int exit_code;
 
-	for (argv0 = argv[0], argv++, argc--; argc > 0; argv++, argc--) {
+	memset(opt, 0, 128 * sizeof (int));
+
+	opt['l'] = 255;
+	for (argv++, argc--; argc > 0; argv++, argc--) {
 		if (argv[0][0] != '-')
 			usage();
 
 		switch ((*argv)[1]) {
 		case 'l':
 			argv++; argc--;
-			if (argc == 0 || sscanf(*argv, "%d", &opt_l) <= 0)
+			if (argc == 0 || sscanf(*argv, "%d", &opt['l']) <= 0)
 				usage();
 			break;
-
-		case 't': opt_tb = 't'; break;
-		case 'b': opt_tb = 'b'; break;
 
 		case 'p':
-			argc--; argv++;
+			argv++; argc--;
 			if (argc == 0)
 				usage();
-			opt_p = *argv;
+			prompt = *argv;
 			break;
 
-		case 's':
-			opt_s = '#';
-			break;
-
-		case 'h':
-			opt_h = 1;
+		case '#':
+			opt['#'] = 1;
 			break;
 
 		default:
@@ -513,14 +454,14 @@ main(int argc, char *argv[])
 	if (!freopen("/dev/tty", "r", stdin) ||
 	    !freopen("/dev/tty", "w", stderr))
 		die("freopen");
-	tty_fd =  open("/dev/tty", O_RDWR);
+	ttyfd =  open("/dev/tty", O_RDWR);
 
 	set_terminal();
 	sigwinch();
 	exit_code = input_get();  /* main loop */
 	reset_terminal();
-	close(tty_fd);
-	free_all();
+	close(ttyfd);
+	freeall();
 
-	return exit_code;
+	return exitcode;
 }
