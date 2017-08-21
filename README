@@ -4,7 +4,7 @@ NAME
      iomenu – interactive selection menu
 
 SYNOPSIS
-     iomenu [-l lines]
+     iomenu [-#] [-l lines] [-p prompt]
 
 DESCRIPTION
      iomenu is an interactive filtering and selection tool for the terminal.
@@ -16,6 +16,12 @@ DESCRIPTION
                        displayed in an horizontal list.  Otherwise, in a
                        vertical list of at most lines lines.
 
+     -p prompt         Set the prompt to display at the beginning of the input
+                       to prompt.
+
+     -#                If a line starts with #, iomenu will interprete it as a
+                       header, which always matches, and can not be printed.
+
    Selection control
      An active selection is highlighted, and can be controlled with
      keybindings.
@@ -24,14 +30,11 @@ DESCRIPTION
 
      ^M, ^J, Enter    Print the selection to the standard output, and exit 0.
 
-     ^Y               Print the selection to the standard output but continue
-                      running.
-
    Input handling
      As printable keys are entered, the selection is filtered to match every
      word from the input.
 
-     ^H, Backspace    Remove last character from current input.
+     ^H, Bakcspace    Remove last character from current input.
 
      ^W               Remove last word from current input.
 
@@ -65,7 +68,7 @@ EXAMPLES
 
      Filter "ps" output and print a process ID
 
-       ps ax | tail -n +2 | iomenu -l 255 | sed -r 's/ *([0-9]*).*/1/'
+       { printf '# '; ps ax; } | iomenu -l 255 -s | sed -r 's/ *([0-9]*).*/1/'
 
 SEE ALSO
      dmenu(1), slmenu(1), vis-menu(1)
@@ -77,4 +80,4 @@ AUTORS
      iomenu was written from scratch by Josuah Demangeon <mail@josuah.net>
      with the help of dmenu(1) and vis-menu(1) as models.
 
-Linux 4.9.11-1-ARCH             March 19, 2017             Linux 4.9.11-1-ARCH
+Void Linux                      August 21, 2017                     Void Linux
