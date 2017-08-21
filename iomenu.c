@@ -14,9 +14,8 @@
 
 #define  CONTROL(char) (char ^ 0x40)
 #define  ALT(char) (char + 0x80)
+#define  ESC(char) (char + 0x80 + 0x80)
 #define  MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
-
-enum { KEY_UP = 0x81, KEY_DOWN, PG_UP, PG_DOWN };
 
 static struct winsize ws;
 static struct termios termios;
@@ -341,22 +340,26 @@ top:
 		filter();
 		break;
 
-	case KEY_UP:
+	case ESC('A'):  /* up */
 	case CONTROL('P'):
 		move(-1);
 		break;
 
-	case KEY_DOWN:
+	case ESC('B'):  /* down */
 	case CONTROL('N'):
 		move(+1);
 		break;
 
-	case PG_UP:
+	case ESC('5'):
+		if (fgetc(stdin) != '~') break;
+		/* FALLTHROUGH */
 	case ALT('v'):
 		movepg(-1);
 		break;
 
-	case PG_DOWN:
+	case ESC('6'):
+		if (fgetc(stdin) != '~') break;
+		/* FALLTHROUGH */
 	case CONTROL('V'):
 		movepg(+1);
 		break;
@@ -373,24 +376,8 @@ top:
 		return EXIT_SUCCESS;
 
 	case ALT('['):
-		switch (fgetc(stdin)) {
-		case 'A':
-			key = KEY_UP;
-			goto top;
-		case 'B':
-			key = KEY_DOWN;
-			goto top;
-		case '5':
-			if (fgetc(stdin) == '~') {
-				key = PG_UP;
-				goto top;
-			}
-		case '6':
-			if (fgetc(stdin) == '~') {
-				key = PG_DOWN;
-				goto top;
-			}
-		}
+		key = ESC(fgetc(stdin));
+		goto top;
 
 	case 033: /* escape / alt */
 		key = ALT(fgetc(stdin));
