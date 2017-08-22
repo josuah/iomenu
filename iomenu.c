@@ -12,9 +12,9 @@
 
 #define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
-#define  CONTROL(char) (char ^ 0x40)
+#define  CTL(char) (char ^ 0x40)
 #define  ALT(char) (char + 0x80)
-#define  ESC(char) (char + 0x80 + 0x80)
+#define  CSI(char) (char + 0x80 + 0x80)
 #define  MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 static struct winsize ws;
@@ -74,7 +74,7 @@ resetterminal(void)
 	int i;
 
 	/* clear terminal */
-	for (i = 0; i < opt['l'] + 1; i++)
+	for (i = 0; i < rows + 1; i++)
 		fputs("\r\033[K\n", stderr);
 
 	/* reset cursor position */
@@ -322,61 +322,61 @@ key(void)
 top:
 	switch (key) {
 
-	case CONTROL('C'):
+	case CTL('C'):
 		return EXIT_FAILURE;
 
-	case CONTROL('U'):
+	case CTL('U'):
 		input[0] = '\0';
 		filter();
 		break;
 
-	case CONTROL('W'):
+	case CTL('W'):
 		removeword();
 		break;
 
 	case 127:
-	case CONTROL('H'):  /* backspace */
+	case CTL('H'):  /* backspace */
 		input[strlen(input) - 1] = '\0';
 		filter();
 		break;
 
-	case ESC('A'):  /* up */
-	case CONTROL('P'):
+	case CSI('A'):  /* up */
+	case CTL('P'):
 		move(-1);
 		break;
 
-	case ESC('B'):  /* down */
-	case CONTROL('N'):
+	case CSI('B'):  /* down */
+	case CTL('N'):
 		move(+1);
 		break;
 
-	case ESC('5'):
+	case CSI('5'):  /* page up */
 		if (fgetc(stdin) != '~') break;
 		/* FALLTHROUGH */
 	case ALT('v'):
 		movepg(-1);
 		break;
 
-	case ESC('6'):
+	case CSI('6'):  /* page down */
 		if (fgetc(stdin) != '~') break;
 		/* FALLTHROUGH */
-	case CONTROL('V'):
+	case CTL('V'):
 		movepg(+1);
 		break;
 
-	case CONTROL('I'):  /* tab */
+	case CTL('I'):  /* tab */
 		if (linec > 0)
 			strcpy(input, matchv[current]);
 		filter();
 		break;
 
-	case CONTROL('J'):  /* enter */
-	case CONTROL('M'):
+	case CTL('J'):  /* enter */
+	case CTL('M'):
 		printselection();
 		return EXIT_SUCCESS;
 
 	case ALT('['):
-		key = ESC(fgetc(stdin));
+		key = CSI(fgetc(stdin));
 		goto top;
 
 	case 033: /* escape / alt */
@@ -464,6 +464,7 @@ main(int argc, char *argv[])
 	input[0] = '\0';
 	while ((exitcode = key()) == CONTINUE)
 		printscreen();
+	printscreen();
 
 	resetterminal();
 	close(ttyfd);
