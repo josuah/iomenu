@@ -33,7 +33,7 @@
  * or 0 if ti is misencoded.
  */
 size_t
-utf8len(char *s, int n)
+utf8len(char *s)
 {
 	unsigned char *sp = (unsigned char *) s;
 	int i, len = (*sp < 0x80) ? 1 :  /* 0xxxxxxx < 10000000 */
@@ -45,7 +45,7 @@ utf8len(char *s, int n)
 	             (*sp < 0xfe) ? 6 :  /* 1111110x < 11111110 */
 	             (*sp < 0xff) ? 7 :  /* 11111110 < 11111111 */
 	                            0;
-	if (len > n) return 0;
+	if (len > strlen(s)) return 0;
 
 	/* check continuation bytes */
 	for (sp++, i = 1; i < len; i++, sp++)
@@ -75,12 +75,12 @@ utf8runelen(long r)
  * Return the number of bytes read or 0 if the string is misencoded.
  */
 size_t
-utf8torune(long *r, char *s, size_t n)
+utf8torune(long *r, char *s)
 {
 	char mask[] = { 0x7f, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
-	size_t i, len = utf8len(s, n);
+	size_t i, len = utf8len(s);
 
-	if (len == 0 || len > 6 || len > n)
+	if (len == 0 || len > 6 || len > strlen(s))
 		return 0;
 
 	/* first byte */
@@ -130,7 +130,7 @@ utf8check(char *s, size_t len)
 	long r = 0;
 
 	while (len > 0) {
-		shift = utf8torune(&r, s, len);
+		shift = utf8torune(&r, s);
 		if (!shift || !utf8runeisunicode(r))
 			return 0;
 

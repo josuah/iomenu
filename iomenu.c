@@ -10,6 +10,8 @@
 
 #include <sys/ioctl.h>
 
+#include "utf8.h"
+
 #define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
 
 #define  CTL(char) (char ^ 0x40)
@@ -121,26 +123,33 @@ readlines(void)
 }
 
 static char *
-format(char *str, int cols)
+format(char *s, int cols)
 {
-	int i, j;
+	int   i = 0;
+	long  r = 0;
+	char *f = formatted;
 
-	for (i = j = 0; str[i] && j < cols; i++) {
+	while (*s && i < cols) {
+		if (*s == '\t') {
+			int t = 8 - i % 8;
+			while (t-- && i < cols) {
+				*f++ = ' ';
+				i++;
+			}
+			s++;
 
-		if (str[i] == '\t') {
-			int t = 8 - j % 8;
-			while (t-- > 0 && j < cols)
-				formatted[j++] = ' ';
-
-		} else if (isprint(str[i])) {
-			formatted[j++] = str[i];
+		} else if (utf8torune(&r, s) && utf8isprint(r)) {
+			int j = utf8len(s);
+			while (j--)
+				*f++ = *s++;
+			i++;
 
 		} else {
-			formatted[j++] = '?';
+			*f++ = '?';
+			i++;
 		}
 	}
-
-	formatted[j] = '\0';
+	*f = '\0';
 
 	return formatted;
 }
