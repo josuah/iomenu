@@ -1,4 +1,4 @@
-CFLAGS    = -std=c89 -Wpedantic -Wall -Wextra -g # -static 
+CFLAGS = -std=c89 -Wpedantic -Wall -Wextra -g
 
 all: clean iomenu
 
