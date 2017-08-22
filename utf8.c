@@ -22,8 +22,9 @@
  * binary masks.
  */
 
+#include <ctype.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
 
 #include "utf8.h"
 
@@ -45,7 +46,7 @@ utf8len(char *s)
 	             (*sp < 0xfe) ? 6 :  /* 1111110x < 11111110 */
 	             (*sp < 0xff) ? 7 :  /* 11111110 < 11111111 */
 	                            0;
-	if (len > strlen(s)) return 0;
+	if ((size_t) len > strlen(s)) return 0;
 
 	/* check continuation bytes */
 	for (sp++, i = 1; i < len; i++, sp++)
@@ -80,7 +81,7 @@ utf8torune(long *r, char *s)
 	char mask[] = { 0x7f, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
 	size_t i, len = utf8len(s);
 
-	if (len == 0 || len > 6 || len > strlen(s))
+	if (len == 0 || len > 6 || (size_t) len > strlen(s))
 		return 0;
 
 	/* first byte */
@@ -124,9 +125,9 @@ utf8runeisunicode(long r)
  * code points.
  */
 int
-utf8check(char *s, size_t len)
+utf8check(char *s)
 {
-	size_t shift;
+	size_t shift, len = strlen(s);
 	long r = 0;
 
 	while (len > 0) {
@@ -139,4 +140,13 @@ utf8check(char *s, size_t len)
 	}
 
 	return 1;
+}
+
+/*
+ * Return 1 if the rune is a printable character, and 0 otherwise.
+ */
+int
+utf8isprint(long r)
+{
+	return (0x1f < r && r != 0x7f && r < 0x80) || 0x9f < r;
 }
