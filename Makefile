@@ -1,6 +1,6 @@
 CFLAGS = -std=c89 -Wpedantic -Wall -Wextra -g
 
-all: clean iomenu
+all: iomenu
 
 iomenu: iomenu.o utf8.o
 

@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <fcntl.h>
 #include <locale.h>
 #include <signal.h>
@@ -6,7 +7,6 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
-#include <ctype.h>
 
 #include <sys/ioctl.h>
 
@@ -89,37 +89,24 @@ resetterminal(void)
 static void
 readlines(void)
 {
-	char buffer[BUFSIZ];
-	int size = 1 << 6;
+	int size = 0;
 
-	linev  = malloc(sizeof (char **) * size);
-	matchv = malloc(sizeof (char **) * size);
-	if (linev == NULL || matchv == NULL)
-		die("malloc");
-
-	linev[0] = matchv[0] = NULL;
-
-	/* read the file into an array of lines as the lines never change */
-	for (; fgets(buffer, sizeof buffer, stdin); linec++, matchc++) {
-		int len = strlen(buffer);
-
-		if (len > 0 && buffer[len - 1] == '\n')
-			buffer[len - 1] = '\0';
-
+	do {
 		if (linec >= size) {
-			size *= 2;
+			size += BUFSIZ;
 			linev  = realloc(linev,  sizeof (char **) * size);
 			matchv = realloc(matchv, sizeof (char **) * size);
-			if (linev == NULL || matchv == NULL)
+			if (!linev || !matchv)
 				die("realloc");
 		}
 
-		linev[linec] = matchv[matchc] = malloc(len + 1);
+		linev[linec] = matchv[linec] = malloc(BUFSIZ);
 		if (linev[linec] == NULL)
 			die("malloc");
 
-		strcpy(linev[linec], buffer);
-	}
+	} while (fgets(linev[linec++], BUFSIZ, stdin));
+
+	matchc = linec;
 }
 
 static char *
@@ -130,7 +117,10 @@ format(char *s, int cols)
 	char *f = formatted;
 
 	while (*s && i < cols) {
-		if (*s == '\t') {
+		if (*s == '\n') {
+			s++;
+
+		} else if (*s == '\t') {
 			int t = 8 - i % 8;
 			while (t-- && i < cols) {
 				*f++ = ' ';
@@ -147,6 +137,7 @@ format(char *s, int cols)
 		} else {
 			*f++ = '?';
 			i++;
+			s++;
 		}
 	}
 	*f = '\0';
@@ -429,21 +420,26 @@ parseopt(int argc, char *argv[])
 			usage();
 
 		switch ((*argv)[1]) {
+
 		case 'l':
-			argv++; argc--;
-			if (argc == 0 || sscanf(*argv, "%d", &opt['l']) <= 0)
+			if (!--argc || sscanf(*++argv, "%d", &opt['l']) <= 0)
 				usage();
 			break;
 
 		case 'p':
-			argv++; argc--;
-			if (argc == 0)
+			if (!--argc)
 				usage();
-			prompt = *argv;
+			prompt = *++argv;
 			break;
 
 		case '#':
 			opt['#'] = 1;
+			break;
+
+		case 's':
+			if (!--argc)
+				usage();
+			opt['s'] = (int) **++argv;
 			break;
 
 		default:
