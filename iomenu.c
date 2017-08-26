@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <locale.h>
 #include <signal.h>
 #include <stdio.h>
@@ -25,7 +26,7 @@ static int            ttyfd;
 static int            current = 0, offset = 0, prev = 0, next = 0;
 static int            linec = 0,      matchc = 0;
 static char         **linev = NULL, **matchv = NULL;
-static char           input[BUFSIZ], formatted[BUFSIZ * 8];
+static char           input[LINE_MAX], formatted[LINE_MAX * 8];
 static int            opt[128], rows = 0;
 static char          *prompt = "";
 
@@ -89,7 +90,8 @@ resetterminal(void)
 static void
 readlines(void)
 {
-	int size = 0;
+	int    size = 0;
+	size_t len;
 
 	do {
 		if (linec >= size) {
@@ -100,13 +102,17 @@ readlines(void)
 				die("realloc");
 		}
 
-		linev[linec] = matchv[linec] = malloc(BUFSIZ);
-		if (linev[linec] == NULL)
-			die("malloc");
+		linev[linec] = malloc(LINE_MAX + 1);
+		if (!(fgets(linev[linec], LINE_MAX, stdin))) {
+			free(linev[linec]);
+			break;
+		}
 
-	} while (fgets(linev[linec++], BUFSIZ, stdin));
+		len = strlen(linev[linec]);
+		if (len > 0 && linec[linev][len - 1] == '\n')
+			linev[linec][len - 1] = '\0';
 
-	matchc = linec;
+	} while (++linec, ++matchc);
 }
 
 static char *
@@ -117,10 +123,7 @@ format(char *s, int cols)
 	char *f = formatted;
 
 	while (*s && i < cols) {
-		if (*s == '\n') {
-			s++;
-
-		} else if (*s == '\t') {
+		if (*s == '\t') {
 			int t = 8 - i % 8;
 			while (t-- && i < cols) {
 				*f++ = ' ';

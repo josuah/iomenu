@@ -1,4 +1,4 @@
-CFLAGS = -std=c89 -Wpedantic -Wall -Wextra -g
+CFLAGS = -std=c89 -Wpedantic -Wall -Wextra -g -D_POSIX_C_SOURCE=200809L
 
 all: iomenu
 
@@ -8,6 +8,7 @@ clean:
 	rm -f *.o iomenu
 
 install: iomenu
-	mkdir -p $(PREFIX)/bin $(PREFIX)/share/man/man1
-	cp *.1    $(PREFIX)/share/man/man1/
-	cp iomenu $(PREFIX)/bin/
+	mkdir -p  $(PREFIX)/share/man/man1
+	cp *.1    $(PREFIX)/share/man/man1
+	mkdir -p  $(PREFIX)/bin
+	cp iomenu $(PREFIX)/bin
