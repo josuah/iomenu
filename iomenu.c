@@ -31,7 +31,7 @@ static int            opt[128], rows = 0;
 static char          *prompt = "";
 
 static void
-freelines(void)
+free_lines(void)
 {
 	if (linev) {
 		for (; linec > 0; linec--)
@@ -47,13 +47,13 @@ die(const char *s)
 {
 	tcsetattr(ttyfd, TCSANOW, &termios);
 	close(ttyfd);
-	freelines();
+	free_lines();
 	perror(s);
 	exit(EXIT_FAILURE);
 }
 
 static void
-setterminal(void)
+set_terminal(void)
 {
 	struct termios new;
 
@@ -72,7 +72,7 @@ setterminal(void)
 }
 
 static void
-resetterminal(void)
+reset_terminal(void)
 {
 	int i;
 
@@ -88,7 +88,7 @@ resetterminal(void)
 }
 
 static void
-readlines(void)
+read_lines(void)
 {
 	int    size = 0;
 	size_t len;
@@ -115,41 +115,53 @@ readlines(void)
 	} while (++linec, ++matchc);
 }
 
-static char *
-format(char *s, int cols)
+static size_t
+string_width(char *s)
 {
-	int   i = 0;
-	long  r = 0;
-	char *f = formatted;
+	int width = 0;
 
-	while (*s && i < cols) {
-		if (*s == '\t') {
-			int t = 8 - i % 8;
-			while (t-- && i < cols) {
-				*f++ = ' ';
-				i++;
+	while (*s)
+		if (*s++ == '\t')
+			width += (width + 7) % 8;
+
+	return width;
+}
+
+static char *
+format(char *str, int cols)
+{
+	int   col = 0;
+	long  rune = 0;
+	char *fmt = formatted;
+
+	while (*str && col < cols) {
+		if (*str == '\t') {
+			int t = 8 - col % 8;
+			while (t-- && col < cols) {
+				*fmt++ = ' ';
+				col++;
 			}
-			s++;
+			str++;
 
-		} else if (utf8torune(&r, s) && utf8isprint(r)) {
-			int j = utf8len(s);
-			while (j--)
-				*f++ = *s++;
-			i++;
+		} else if (utf8_to_rune(&rune, str) && rune_is_print(rune)) {
+			int i = utf8_len(str);
+			while (i--)
+				*fmt++ = *str++;
+			col++;
 
-		} else {
-			*f++ = '?';
-			i++;
-			s++;
+	} else {
+		*fmt++ = '?';
+		col++;
+		str++;
 		}
 	}
-	*f = '\0';
+	*fmt = '\0';
 
 	return formatted;
 }
 
 static void
-printlines(void)
+print_lines(void)
 {
 	int printed = 0, i = current - current % rows;
 
@@ -172,13 +184,13 @@ printlines(void)
 }
 
 static void
-printscreen(void)
+print_screen(void)
 {
 	int cols = ws.ws_col - 1;
 
 	fputs("\r\033[K", stderr);
 
-	printlines();
+	print_lines();
 	fprintf(stderr, "\033[%dA\r", rows);
 
 	if (*prompt) {
@@ -194,7 +206,7 @@ printscreen(void)
 }
 
 static int
-matchline(char *line, char **tokv, int tokc)
+match_line(char *line, char **tokv, int tokc)
 {
 	if (opt['#'] && line[0] == '#')
 		return 2;
@@ -220,9 +232,12 @@ move(signed int sign)
 }
 
 static void
-movepg(signed int sign)
+move_page(signed int sign)
 {
 	int i = current - current % rows + rows * sign;
+
+	if (!opt['l'])
+		return;
 
 	if (0 > i || i > matchc)
 		return;
@@ -255,7 +270,7 @@ filter(void)
 
 	matchc = 0;
 	for (i = 0; i < linec; i++)
-		if (matchline(linev[i], tokv, tokc))
+		if (match_line(linev[i], tokv, tokc))
 			matchv[matchc++] = linev[i];
 
 	free(tokv);
@@ -265,7 +280,7 @@ filter(void)
 }
 
 static void
-removeword()
+remove_word()
 {
 	int len = strlen(input) - 1, i;
 
@@ -280,7 +295,7 @@ removeword()
 }
 
 static void
-addchar(char key)
+add_char(char key)
 {
 	int len = strlen(input);
 
@@ -293,7 +308,7 @@ addchar(char key)
 }
 
 static void
-printselection(void)
+print_selection(void)
 {
 	if (opt['#']) {
 		char **match = matchv + current;
@@ -334,7 +349,7 @@ top:
 		break;
 
 	case CTL('W'):
-		removeword();
+		remove_word();
 		break;
 
 	case 127:
@@ -357,14 +372,14 @@ top:
 		if (fgetc(stdin) != '~') break;
 		/* FALLTHROUGH */
 	case ALT('v'):
-		movepg(-1);
+		move_page(-1);
 		break;
 
 	case CSI('6'):  /* page down */
 		if (fgetc(stdin) != '~') break;
 		/* FALLTHROUGH */
 	case CTL('V'):
-		movepg(+1);
+		move_page(+1);
 		break;
 
 	case CTL('I'):  /* tab */
@@ -375,7 +390,7 @@ top:
 
 	case CTL('J'):  /* enter */
 	case CTL('M'):
-		printselection();
+		print_selection();
 		return EXIT_SUCCESS;
 
 	case ALT('['):
@@ -387,7 +402,7 @@ top:
 		goto top;
 
 	default:
-		addchar((char) key);
+		add_char((char) key);
 	}
 
 	return CONTINUE;
@@ -400,7 +415,7 @@ sigwinch()
 		die("ioctl");
 
 	rows = MIN(opt['l'], ws.ws_row - 1);
-	printscreen();
+	print_screen();
 
 	signal(SIGWINCH, sigwinch);
 }
@@ -413,7 +428,7 @@ usage(void)
 }
 
 static void
-parseopt(int argc, char *argv[])
+parse_opt(int argc, char *argv[])
 {
 	memset(opt, 0, 128 * sizeof (int));
 
@@ -454,11 +469,11 @@ parseopt(int argc, char *argv[])
 int
 main(int argc, char *argv[])
 {
-	int exitcode;
+	int exit_code;
 
-	parseopt(argc, argv);
+	parse_opt(argc, argv);
 
-	readlines();
+	read_lines();
 	filter();
 
 	if (!freopen("/dev/tty", "r", stdin) ||
@@ -466,17 +481,17 @@ main(int argc, char *argv[])
 		die("freopen");
 	ttyfd =  open("/dev/tty", O_RDWR);
 
-	setterminal();
+	set_terminal();
 	sigwinch();
 
 	input[0] = '\0';
-	while ((exitcode = key()) == CONTINUE)
-		printscreen();
-	printscreen();
+	while ((exit_code = key()) == CONTINUE)
+		print_screen();
+	print_screen();
 
-	resetterminal();
+	reset_terminal();
 	close(ttyfd);
-	freelines();
+	free_lines();
 
-	return exitcode;
+	return exit_code;
 }

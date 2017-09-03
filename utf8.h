@@ -1,6 +1,6 @@
-size_t utf8len(char *);
-size_t utf8runelen(long);
-size_t utf8torune(long *, char *);
-int    utf8isunicode(long);
-int    utf8check(char *);
-int    utf8isprint(long);
+size_t utf8_len(char *);
+size_t rune_len(long);
+size_t utf8_to_rune(long *, char *);
+int    utf8_is_unicode(long);
+int    utf8_check(char *);
+int    rune_is_print(long);

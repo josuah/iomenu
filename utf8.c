@@ -34,7 +34,7 @@
  * or 0 if ti is misencoded.
  */
 size_t
-utf8len(char *s)
+utf8_len(char *s)
 {
 	unsigned char *sp = (unsigned char *) s;
 	int i, len = (*sp < 0x80) ? 1 :  /* 0xxxxxxx < 10000000 */
@@ -62,7 +62,7 @@ utf8len(char *s)
  * 0 if rune is too long.
  */
 size_t
-utf8runelen(long r)
+rune_len(long r)
 {
 	return (r <= 0x0000007f) ? 1 : (r <= 0x000007ff) ? 2 :
 	       (r <= 0x0000ffff) ? 3 : (r <= 0x001fffff) ? 4 :
@@ -76,10 +76,10 @@ utf8runelen(long r)
  * Return the number of bytes read or 0 if the string is misencoded.
  */
 size_t
-utf8torune(long *r, char *s)
+utf8_to_rune(long *r, char *s)
 {
 	char mask[] = { 0x7f, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
-	size_t i, len = utf8len(s);
+	size_t i, len = utf8_len(s);
 
 	if (len == 0 || len > 6 || (size_t) len > strlen(s))
 		return 0;
@@ -92,7 +92,7 @@ utf8torune(long *r, char *s)
 		*r = (*r << 6) | (*s++ & 0x3f);  /* 10xxxxxx */
 
 	/* overlong sequences */
-	if (utf8runelen(*r) != len)
+	if (rune_len(*r) != len)
 		return 0;
 
 	return len;
@@ -103,7 +103,7 @@ utf8torune(long *r, char *s)
  * Returns 1 if the rune is a valid unicode code point and 0 if not.
  */
 int
-utf8runeisunicode(long r)
+rune_is_unicode(long r)
 {
 	return !(
 		(r > 0x10ffff)                   ||  /* outside range */
@@ -125,14 +125,14 @@ utf8runeisunicode(long r)
  * code points.
  */
 int
-utf8check(char *s)
+utf8_check(char *s)
 {
 	size_t shift, len = strlen(s);
 	long r = 0;
 
 	while (len > 0) {
-		shift = utf8torune(&r, s);
-		if (!shift || !utf8runeisunicode(r))
+		shift = utf8_to_rune(&r, s);
+		if (!shift || !rune_is_unicode(r))
 			return 0;
 
 		s   += shift;
@@ -146,7 +146,7 @@ utf8check(char *s)
  * Return 1 if the rune is a printable character, and 0 otherwise.
  */
 int
-utf8isprint(long r)
+rune_is_print(long r)
 {
 	return (0x1f < r && r != 0x7f && r < 0x80) || 0x9f < r;
 }
