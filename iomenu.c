@@ -14,6 +14,7 @@
 #include "utf8.h"
 
 #define CONTINUE  2   /* as opposed to EXIT_SUCCESS and EXIT_FAILURE */
+#define MARGIN    30  /* space for the input before the horizontal list */
 
 #define  CTL(char) (char ^ 0x40)
 #define  ALT(char) (char + 0x80)
@@ -53,6 +54,34 @@ die(const char *s)
 }
 
 static void
+read_lines(void)
+{
+	int    size = 0;
+	size_t len;
+
+	do {
+		if (linec >= size) {
+			size += BUFSIZ;
+			linev  = realloc(linev,  sizeof (char **) * size);
+			matchv = realloc(matchv, sizeof (char **) * size);
+			if (!linev || !matchv)
+				die("realloc");
+		}
+
+		linev[linec] = malloc(LINE_MAX + 1);
+		if (!(fgets(linev[linec], LINE_MAX, stdin))) {
+			free(linev[linec]);
+			break;
+		}
+
+		len = strlen(linev[linec]);
+		if (len > 0 && linec[linev][len - 1] == '\n')
+			linev[linec][len - 1] = '\0';
+
+	} while (++linec, ++matchc);
+}
+
+static void
 set_terminal(void)
 {
 	struct termios new;
@@ -83,139 +112,45 @@ reset_terminal(void)
 	/* reset cursor position */
 	fputs("\033[u", stderr);
 
-	/* set terminal back to normal mode */
 	tcsetattr(ttyfd, TCSANOW, &termios);
 }
 
-static void
-read_lines(void)
-{
-	int    size = 0;
-	size_t len;
-
-	do {
-		if (linec >= size) {
-			size += BUFSIZ;
-			linev  = realloc(linev,  sizeof (char **) * size);
-			matchv = realloc(matchv, sizeof (char **) * size);
-			if (!linev || !matchv)
-				die("realloc");
-		}
-
-		linev[linec] = malloc(LINE_MAX + 1);
-		if (!(fgets(linev[linec], LINE_MAX, stdin))) {
-			free(linev[linec]);
-			break;
-		}
-
-		len = strlen(linev[linec]);
-		if (len > 0 && linec[linev][len - 1] == '\n')
-			linev[linec][len - 1] = '\0';
-
-	} while (++linec, ++matchc);
-}
-
 static size_t
-string_width(char *s)
+str_width(char *s)
 {
 	int width = 0;
 
-	while (*s)
+	while (*s) {
 		if (*s++ == '\t')
 			width += (width + 7) % 8;
+		else
+			width++;
+	}
 
 	return width;
 }
 
-static char *
-format(char *str, int cols)
+static int
+prev_page(int pos, int cols)
 {
-	int   col = 0;
-	long  rune = 0;
-	char *fmt = formatted;
+	int col;
 
-	while (*str && col < cols) {
-		if (*str == '\t') {
-			int t = 8 - col % 8;
-			while (t-- && col < cols) {
-				*fmt++ = ' ';
-				col++;
-			}
-			str++;
-
-		} else if (utf8_to_rune(&rune, str) && rune_is_print(rune)) {
-			int i = utf8_len(str);
-			while (i--)
-				*fmt++ = *str++;
-			col++;
-
-	} else {
-		*fmt++ = '?';
-		col++;
-		str++;
-		}
-	}
-	*fmt = '\0';
-
-	return formatted;
-}
-
-static void
-print_lines(void)
-{
-	int printed = 0, i = current - current % rows;
-
-	while (printed < rows && i < matchc) {
-
-		char *s = format(matchv[i], ws.ws_col - 1);
-
-		if (opt['#'] && matchv[i][0] == '#')
-			fprintf(stderr, "\n\033[1m\033[K %s\033[m",     s);
-		else if (i == current)
-			fprintf(stderr, "\n\033[30;47m\033[K %s\033[m", s);
-		else
-			fprintf(stderr, "\n\033[K %s",                  s);
-
-		i++; printed++;
-	}
-
-	while (printed++ < rows)
-		fputs("\n\033[K", stderr);
-}
-
-static void
-print_screen(void)
-{
-	int cols = ws.ws_col - 1;
-
-	fputs("\r\033[K", stderr);
-
-	print_lines();
-	fprintf(stderr, "\033[%dA\r", rows);
-
-	if (*prompt) {
-		format(prompt, cols - 2);
-		fprintf(stderr, "\033[30;47m %s \033[m", formatted);
-		cols -= strlen(formatted) + 2;
-	}
-
-	fputc(' ', stderr);
-	fputs(format(input, cols), stderr);
-
-	fflush(stderr);
+	pos -= pos > 0 ? 1 : 0;
+	for (col = 0; pos > 0; pos--)
+		if ((col += str_width(matchv[pos]) + 2) > cols)
+			return pos + 1;
+	return pos;
 }
 
 static int
-match_line(char *line, char **tokv, int tokc)
+next_page(int pos, int cols)
 {
-	if (opt['#'] && line[0] == '#')
-		return 2;
+	int col;
 
-	while (tokc-- > 0)
-		if (strstr(line, tokv[tokc]) == NULL)
-			return 0;
-
-	return 1;
+	for (col = 0; pos < matchc; pos++)
+		if ((col += str_width(matchv[pos]) + 2) > cols)
+			return pos;
+	return pos;
 }
 
 static void
@@ -244,6 +179,128 @@ move_page(signed int sign)
 
 	current = i - 1;
 	move(+1);
+}
+
+static char *
+format(char *str, int cols)
+{
+	int   col = 0;
+	long  rune = 0;
+	char *fmt = formatted;
+
+	while (*str && col < cols) {
+		if (*str == '\t') {
+			int t = 8 - col % 8;
+			while (t-- && col < cols) {
+				*fmt++ = ' ';
+				col++;
+			}
+			str++;
+
+		} else if (utf8_to_rune(&rune, str) && rune_is_print(rune)) {
+			int i = utf8_len(str);
+			while (i--)
+				*fmt++ = *str++;
+			col++;
+
+		} else {
+			*fmt++ = '?';
+			col++;
+			str++;
+		}
+	}
+	*fmt = '\0';
+
+	return formatted;
+}
+
+static void
+print_lines(void)
+{
+	int printed = 0, i = current - current % rows;
+
+	for (; printed < rows && i < matchc; i++, printed++) {
+		fprintf(stderr,
+			opt['#'] && matchv[i][0] == '#' ?
+			"\n\033[1m\033[K %s\033[m"      :
+			i == current                    ?
+			"\n\033[47;30m\033[K %s\033[m"      :
+			"\n\033[K %s",
+			format(matchv[i], ws.ws_col - 1)
+		);
+	}
+
+	while (printed++ < rows)
+		fputs("\n\033[K", stderr);
+}
+
+static void
+print_segments(void)
+{
+	int i;
+
+	if (current < offset) {
+		next   = offset;
+		offset = prev_page(offset, ws.ws_col - MARGIN - 4);
+
+	} else if (current >= next) {
+		offset = next;
+		next   = next_page(offset, ws.ws_col - MARGIN - 4);
+	}
+
+	fprintf(stderr, "\r\033[K\033[%dC", MARGIN);
+	fputs(offset > 0 ? "< " : "  ", stderr);
+
+	for (i = offset; i < next && i < matchc; i++) {
+		fprintf(stderr,
+			opt['#'] && matchv[i][0] == '#' ? "\033[1m %s \033[m" :
+			i == current                    ? "\033[7m %s \033[m" :
+			                                  " %s ",
+			format(matchv[i], ws.ws_col - 1)
+		);
+	}
+
+	if (next < matchc)
+		fprintf(stderr, "\033[%dC\b>", ws.ws_col - MARGIN);
+
+	fputc('\r', stderr);
+}
+
+static void
+print_screen(void)
+{
+	int cols = ws.ws_col - 1;
+
+	if (opt['l'] > 0) {
+		print_lines();
+		fprintf(stderr, "\033[%dA\r", rows);
+	} else {
+		print_segments();
+	}
+
+	if (*prompt) {
+		format(prompt, cols - 2);
+		fprintf(stderr, "\033[30;47m %s \033[m", formatted);
+		cols -= strlen(formatted) + 2;
+	}
+
+	fputc(' ', stderr);
+	fputs(format(input, cols), stderr);
+
+	fflush(stderr);
+}
+
+static int
+match_line(char *line, char **tokv, int tokc)
+{
+	if (opt['#'] && line[0] == '#')
+		return 2;
+
+	while (tokc-- > 0)
+		if (strstr(line, tokv[tokc]) == NULL)
+			return 0;
+
+	return 1;
 }
 
 static void
@@ -333,10 +390,8 @@ print_selection(void)
 }
 
 static int
-key(void)
+key(int key)
 {
-	int key = fgetc(stdin);
-
 top:
 	switch (key) {
 
@@ -485,7 +540,7 @@ main(int argc, char *argv[])
 	sigwinch();
 
 	input[0] = '\0';
-	while ((exit_code = key()) == CONTINUE)
+	while ((exit_code = key(fgetc(stdin))) == CONTINUE)
 		print_screen();
 	print_screen();
 
