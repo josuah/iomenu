@@ -116,13 +116,13 @@ reset_terminal(void)
 }
 
 static size_t
-str_width(char *s)
+width(char *s)
 {
 	int width = 0;
 
 	while (*s) {
 		if (*s++ == '\t')
-			width += (width + 7) % 8;
+			width += 8 - (width % 8);
 		else
 			width++;
 	}
@@ -137,7 +137,7 @@ prev_page(int pos, int cols)
 
 	pos -= pos > 0 ? 1 : 0;
 	for (col = 0; pos > 0; pos--)
-		if ((col += str_width(matchv[pos]) + 2) > cols)
+		if ((col += width(matchv[pos]) + 2) > cols)
 			return pos + 1;
 	return pos;
 }
@@ -148,7 +148,7 @@ next_page(int pos, int cols)
 	int col;
 
 	for (col = 0; pos < matchc; pos++)
-		if ((col += str_width(matchv[pos]) + 2) > cols)
+		if ((col += width(matchv[pos]) + 2) > cols)
 			return pos;
 	return pos;
 }
@@ -169,12 +169,14 @@ move(signed int sign)
 static void
 move_page(signed int sign)
 {
-	int i = current - current % rows + rows * sign;
+	int i;
 
-	if (!opt['l'])
+	if (opt['l'] <= 0)
 		return;
 
-	if (0 > i || i > matchc)
+	i = current - current % rows + rows * sign;
+
+	if (!(0 < i && i < matchc))
 		return;
 
 	current = i - 1;
@@ -232,6 +234,8 @@ print_lines(void)
 
 	while (printed++ < rows)
 		fputs("\n\033[K", stderr);
+
+	fprintf(stderr, "\033[%dA\r\033[K", rows);
 }
 
 static void
@@ -273,7 +277,6 @@ print_screen(void)
 
 	if (opt['l'] > 0) {
 		print_lines();
-		fprintf(stderr, "\033[%dA\r", rows);
 	} else {
 		print_segments();
 	}
@@ -432,14 +435,12 @@ top:
 
 	case CSI('6'):  /* page down */
 		if (fgetc(stdin) != '~') break;
-		/* FALLTHROUGH */
 	case CTL('V'):
 		move_page(+1);
 		break;
 
 	case CTL('I'):  /* tab */
-		if (linec > 0)
-			strcpy(input, matchv[current]);
+		if (linec > 0) strcpy(input, matchv[current]);
 		filter();
 		break;
 
