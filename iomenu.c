@@ -24,7 +24,7 @@
 static struct winsize ws;
 static struct termios termios;
 static int            ttyfd;
-static int            current = 0, offset = 0, prev = 0, next = 0;
+static int            current = 0, offset = 0, next = 0;
 static int            linec = 0,      matchc = 0;
 static char         **linev = NULL, **matchv = NULL;
 static char           input[LINE_MAX], formatted[LINE_MAX * 8];
@@ -86,7 +86,7 @@ set_terminal(void)
 {
 	struct termios new;
 
-	/* save cursor postition */
+	/* save currentsor postition */
 	fputs("\033[s", stderr);
 
 	/* save attributes to `termios` */
@@ -109,7 +109,7 @@ reset_terminal(void)
 	for (i = 0; i < rows + 1; i++)
 		fputs("\r\033[K\n", stderr);
 
-	/* reset cursor position */
+	/* reset currentsor position */
 	fputs("\033[u", stderr);
 
 	tcsetattr(ttyfd, TCSANOW, &termios);
@@ -131,9 +131,9 @@ width(char *s)
 }
 
 static int
-prev_page(int pos, int cols)
+prev_page(int pos)
 {
-	int col;
+	int col, cols = ws.ws_col - MARGIN - 4;
 
 	pos -= pos > 0 ? 1 : 0;
 	for (col = 0; pos > 0; pos--)
@@ -143,9 +143,9 @@ prev_page(int pos, int cols)
 }
 
 static int
-next_page(int pos, int cols)
+next_page(int pos)
 {
-	int col;
+	int col, cols = ws.ws_col - MARGIN - 4;
 
 	for (col = 0; pos < matchc; pos++)
 		if ((col += width(matchv[pos]) + 2) > cols)
@@ -169,18 +169,23 @@ move(signed int sign)
 static void
 move_page(signed int sign)
 {
-	int i;
+	if (opt['l'] <= 0) {
+		if        (sign > 0) {
+			offset = current = next;
+			next   = next_page(next);
+		} else if (sign < 0) {
+			next   = offset;
+			offset = current = prev_page(offset);
+		}
+	} else {
+		int i = current - current % rows + rows * sign;
 
-	if (opt['l'] <= 0)
-		return;
+		if (!(0 < i && i < matchc))
+			return;
 
-	i = current - current % rows + rows * sign;
-
-	if (!(0 < i && i < matchc))
-		return;
-
-	current = i - 1;
-	move(+1);
+		current = i - 1;
+		move(+1);
+	}
 }
 
 static char *
@@ -245,11 +250,11 @@ print_segments(void)
 
 	if (current < offset) {
 		next   = offset;
-		offset = prev_page(offset, ws.ws_col - MARGIN - 4);
+		offset = prev_page(offset);
 
 	} else if (current >= next) {
 		offset = next;
-		next   = next_page(offset, ws.ws_col - MARGIN - 4);
+		next   = next_page(offset);
 	}
 
 	fprintf(stderr, "\r\033[K\033[%dC", MARGIN);
@@ -258,7 +263,7 @@ print_segments(void)
 	for (i = offset; i < next && i < matchc; i++) {
 		fprintf(stderr,
 			opt['#'] && matchv[i][0] == '#' ? "\033[1m %s \033[m" :
-			i == current                    ? "\033[7m %s \033[m" :
+			i == current                        ? "\033[7m %s \033[m" :
 			                                  " %s ",
 			format(matchv[i], ws.ws_col - 1)
 		);
@@ -312,7 +317,7 @@ filter(void)
 	char **tokv = NULL, *s, buffer[sizeof (input)];
 	int       tokc = 0, n = 0, i;
 
-	current = offset = prev = next = 0;
+	current = offset = next = 0;
 
 	strcpy(buffer, input);
 
@@ -428,7 +433,6 @@ top:
 
 	case CSI('5'):  /* page up */
 		if (fgetc(stdin) != '~') break;
-		/* FALLTHROUGH */
 	case ALT('v'):
 		move_page(-1);
 		break;
