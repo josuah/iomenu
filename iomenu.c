@@ -536,9 +536,9 @@ main(int argc, char *argv[])
 	read_lines();
 	filter();
 
-	if (!freopen("/dev/tty", "r", stdin) ||
-	    !freopen("/dev/tty", "w", stderr))
-		die("freopen");
+	if (!freopen("/dev/tty", "r", stdin))  die("freopen /dev/tty");
+	if (!freopen("/dev/tty", "w", stderr)) die("freopen /dev/tty");
+
 	ttyfd =  open("/dev/tty", O_RDWR);
 
 	set_terminal();
