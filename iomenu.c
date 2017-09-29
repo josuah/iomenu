@@ -432,13 +432,17 @@ top:
 		break;
 
 	case CSI('5'):  /* page up */
-		if (fgetc(stdin) != '~') break;
+		if (fgetc(stdin) != '~')
+			break;
+		/* fallthrough */
 	case ALT('v'):
 		move_page(-1);
 		break;
 
 	case CSI('6'):  /* page down */
-		if (fgetc(stdin) != '~') break;
+		if (fgetc(stdin) != '~')
+			break;
+		/* fallthrough */
 	case CTL('V'):
 		move_page(+1);
 		break;
