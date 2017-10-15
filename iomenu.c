@@ -53,13 +53,31 @@ die(const char *s)
 	exit(EXIT_FAILURE);
 }
 
-static void
-read_lines(void)
+static char *
+read_line(FILE *fp)
 {
-	int    size = 0;
+	char *line;
 	size_t len;
 
-	do {
+	line = malloc(LINE_MAX + 1);
+	if (!(fgets(line, LINE_MAX, fp))) {
+		free(line);
+		return NULL;
+	}
+
+	len = strlen(line);
+	if (len > 0 && line[len - 1] == '\n')
+		line[len - 1] = '\0';
+
+	return (line);
+}
+
+static void
+read_stdin(void)
+{
+	int    size = 0;
+
+	while (1) {
 		if (linec >= size) {
 			size += BUFSIZ;
 			linev  = realloc(linev,  sizeof (char **) * size);
@@ -67,18 +85,11 @@ read_lines(void)
 			if (!linev || !matchv)
 				die("realloc");
 		}
-
-		linev[linec] = malloc(LINE_MAX + 1);
-		if (!(fgets(linev[linec], LINE_MAX, stdin))) {
-			free(linev[linec]);
+		if ((linev[linec] = read_line(stdin)) == NULL)
 			break;
-		}
-
-		len = strlen(linev[linec]);
-		if (len > 0 && linec[linev][len - 1] == '\n')
-			linev[linec][len - 1] = '\0';
-
-	} while (++linec, ++matchc);
+		linec++;
+		matchc++;
+	}
 }
 
 static void
@@ -537,7 +548,7 @@ main(int argc, char *argv[])
 
 	parse_opt(argc, argv);
 
-	read_lines();
+	read_stdin();
 	filter();
 
 	if (!freopen("/dev/tty", "r", stdin))  die("freopen /dev/tty");
