@@ -1,8 +1,11 @@
 CFLAGS = -std=c89 -Wpedantic -Wall -Wextra -g -D_POSIX_C_SOURCE=200809L
 
+OBJ = iomenu.o utf8.o
+
 all: iomenu
 
-iomenu: iomenu.o utf8.o
+iomenu: $(OBJ)
+	$(CC) $(LDFLAGS) $(OBJ) -o $@
 
 clean:
 	rm -f *.o iomenu
