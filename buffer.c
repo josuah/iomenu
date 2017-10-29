@@ -1,4 +1,14 @@
+#include <sys/ioctl.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+
+#include "iomenu.h"
 #include "buffer.h"
+#include "main.h"
+#include "control.h"
 
 static char *
 read_line(FILE *fp)
@@ -34,6 +44,8 @@ match_line(char *line, char **tokv, int tokc)
 void
 free_lines(void)
 {
+	extern char **linev;
+
 	if (linev) {
 		for (; linec > 0; linec--)
 			free(linev[linec - 1]);
@@ -46,12 +58,13 @@ free_lines(void)
 void
 read_stdin(void)
 {
-	int    size = 0;
+	int size = 0;
+	extern char **linev;
 
 	while (1) {
 		if (linec >= size) {
 			size += BUFSIZ;
-			linev  = realloc(linev,  sizeof (char **) * size);
+			linev = realloc(linev,  sizeof (char **) * size);
 			matchv = realloc(matchv, sizeof (char **) * size);
 			if (!linev || !matchv)
 				die("realloc");
@@ -67,11 +80,13 @@ void
 filter(void)
 {
 	int tokc = 0;
-	int n    = 0;
+	int n = 0;
 	int i;
 	char **tokv = NULL;
 	char *s;
 	char buffer[sizeof (input)];
+	extern char **linev;
+	extern current;
 
 	current = offset = next = 0;
 	strcpy(buffer, input);

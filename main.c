@@ -1,7 +1,36 @@
+#include <sys/ioctl.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <termios.h>
+#include <signal.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <limits.h>
+
+#include "iomenu.h"
 #include "main.h"
+#include "buffer.h"
+#include "control.h"
+#include "display.h"
 
 static struct termios termios;
 static int            ttyfd;
+
+struct winsize   ws;
+char           **linev = NULL;
+int              linec = 0;
+char           **matchv = NULL;
+int              matchc = 0;
+char            *prompt = "";
+char             input[LINE_MAX];
+char             formatted[LINE_MAX * 8];
+int              current = 0;
+int              offset = 0;
+int              rows = 0;
+int              next = 0;
+int              opt[128];
 
 void
 die(const char *s)
@@ -112,7 +141,7 @@ main(int argc, char *argv[])
 	set_terminal();
 	sigwinch();
 	input[0] = '\0';
-	while ((exit_code = key(fgetc(stdin))) == CONTINUE)
+	while ((exit_code = key(fgetc(stdin))) > 0)
 		print_screen();
 	print_screen();
 	reset_terminal();

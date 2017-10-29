@@ -1,4 +1,15 @@
+#include <sys/ioctl.h>
+
+#include <stddef.h>
+#include <limits.h>
+#include <string.h>
+#include <ctype.h>
+#include <stdio.h>
+
+#include "iomenu.h"
+#include "buffer.h"
 #include "control.h"
+#include "display.h"
 
 #define CTL(char) ((char) ^ 0x40)
 #define ALT(char) ((char) + 0x80)
@@ -22,7 +33,8 @@ width(char *s)
 int
 prev_page(int pos)
 {
-	int col, cols = ws.ws_col - MARGIN - 4;
+	int col;
+	int cols = ws.ws_col - MARGIN - 4;
 
 	pos -= pos > 0 ? 1 : 0;
 	for (col = 0; pos > 0; pos--)
@@ -111,7 +123,7 @@ key(int k)
 top:
 	switch (k) {
 	case CTL('C'):
-		return EXIT_FAILURE;
+		return -1;
 	case CTL('U'):
 		input[0] = '\0';
 		filter();
@@ -154,7 +166,7 @@ top:
 	case CTL('J'):  /* enter */
 	case CTL('M'):
 		print_selection();
-		return EXIT_SUCCESS;
+		return 0;
 	case ALT('['):
 		k = CSI(fgetc(stdin));
 		goto top;
@@ -165,5 +177,5 @@ top:
 		add_char((char) k);
 	}
 
-	return CONTINUE;
+	return 1;
 }

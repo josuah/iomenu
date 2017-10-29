@@ -1,3 +1,11 @@
+#include <sys/ioctl.h>
+#include <string.h>
+#include <stdio.h>
+#include <limits.h>
+
+#include "iomenu.h"
+#include "utf8.h"
+#include "control.h"
 #include "display.h"
 
 static char *
@@ -15,7 +23,7 @@ format(char *str, int cols)
 				col++;
 			}
 			str++;
-		} else if (utf8_to_rune(&rune, str) && rune_is_print(rune)) {
+		} else if (utf8_to_rune(&rune, str) && utf8_is_print(rune)) {
 			int i = utf8_len(str);
 			while (i--)
 				*fmt++ = *str++;

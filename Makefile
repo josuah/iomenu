@@ -1,11 +1,14 @@
-CFLAGS = -std=c89 -Wpedantic -Wall -Wextra -g -D_POSIX_C_SOURCE=200809L
+CFLAGS = -std=c89 -pedantic -Wall -Wextra -g -D_POSIX_C_SOURCE=200809L
 
 OBJ = buffer.o control.o display.o main.o utf8.o
+INC = buffer.h control.h display.h main.h utf8.h iomenu.h
 
 all: iomenu
 
 iomenu: $(OBJ)
 	$(CC) $(LDFLAGS) $(OBJ) -o $@
+
+$(OBJ): $(INC)
 
 clean:
 	rm -f *.o iomenu
