@@ -101,7 +101,7 @@ set_terminal(void)
 	struct termios new;
 
 	/* save currentsor postition */
-	fputs("\033[s", stderr);
+	fputs("\x1b[s", stderr);
 
 	/* save attributes to `termios` */
 	if (tcgetattr(ttyfd, &termios) < 0 || tcgetattr(ttyfd, &new) < 0) {
@@ -110,7 +110,7 @@ set_terminal(void)
 	}
 
 	/* change to raw mode */
-	new.c_lflag &= ~(ICANON | ECHO | IGNBRK);
+	new.c_lflag &= ~(ICANON | ECHO | IGNBRK | IEXTEN | ISIG);
 	tcsetattr(ttyfd, TCSANOW, &new);
 }
 
@@ -121,10 +121,10 @@ reset_terminal(void)
 
 	/* clear terminal */
 	for (i = 0; i < rows + 1; i++)
-		fputs("\r\033[K\n", stderr);
+		fputs("\r\x1b[K\n", stderr);
 
 	/* reset currentsor position */
-	fputs("\033[u", stderr);
+	fputs("\x1b[u", stderr);
 
 	tcsetattr(ttyfd, TCSANOW, &termios);
 }
@@ -241,16 +241,16 @@ print_lines(void)
 	for (; printed < rows && i < matchc; i++, printed++) {
 		fprintf(stderr,
 			opt['#'] && matchv[i][0] == '#' ?
-			"\n\033[1m\033[K %s\033[m"      :
+			"\n\x1b[1m\x1b[K %s\x1b[m"      :
 			i == current                    ?
-			"\n\033[47;30m\033[K %s\033[m"      :
-			"\n\033[K %s",
+			"\n\x1b[47;30m\x1b[K %s\x1b[m"      :
+			"\n\x1b[K %s",
 			format(matchv[i], ws.ws_col - 1)
 		);
 	}
 	while (printed++ < rows)
-		fputs("\n\033[K", stderr);
-	fprintf(stderr, "\033[%dA\r\033[K", rows);
+		fputs("\n\x1b[K", stderr);
+	fprintf(stderr, "\x1b[%dA\r\x1b[K", rows);
 }
 
 static void
@@ -265,17 +265,17 @@ print_segments(void)
 		offset = next;
 		next   = next_page(offset);
 	}
-	fprintf(stderr, "\r\033[K\033[%dC", MARGIN);
+	fprintf(stderr, "\r\x1b[K\x1b[%dC", MARGIN);
 	fputs(offset > 0 ? "< " : "  ", stderr);
 	for (i = offset; i < next && i < matchc; i++) {
 		fprintf(stderr,
-			opt['#'] && matchv[i][0] == '#' ? "\033[1m %s \033[m" :
-			i == current ? "\033[7m %s \033[m" : " %s ",
+			opt['#'] && matchv[i][0] == '#' ? "\x1b[1m %s \x1b[m" :
+			i == current ? "\x1b[7m %s \x1b[m" : " %s ",
 			format(matchv[i], ws.ws_col - 1)
 		);
 	}
 	if (next < matchc)
-		fprintf(stderr, "\033[%dC\b>", ws.ws_col - MARGIN);
+		fprintf(stderr, "\x1b[%dC\b>", ws.ws_col - MARGIN);
 	fputc('\r', stderr);
 }
 
@@ -290,7 +290,7 @@ print_screen(void)
 		print_segments();
 	if (*prompt) {
 		format(prompt, cols - 2);
-		fprintf(stderr, "\033[30;47m %s \033[m", formatted);
+		fprintf(stderr, "\x1b[30;47m %s \x1b[m", formatted);
 		cols -= strlen(formatted) + 2;
 	}
 	fputc(' ', stderr);
@@ -386,7 +386,7 @@ print_selection(void)
 		puts(input);
 	else
 		puts(matchv[current]);
-	fputs("\r\033[K", stderr);
+	fputs("\r\x1b[K", stderr);
 }
 
 static int
@@ -456,7 +456,7 @@ top:
 		key = CSI(fgetc(stdin));
 		goto top;
 
-	case 033: /* escape / alt */
+	case 0x1b: /* escape / alt */
 		key = ALT(fgetc(stdin));
 		goto top;
 
