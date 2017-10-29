@@ -15,45 +15,6 @@
 #define ALT(char) ((char) + 0x80)
 #define CSI(char) ((char) + 0x80 + 0x80)
 
-static size_t
-width(char *s)
-{
-	int width = 0;
-
-	while (*s) {
-		if (*s++ == '\t')
-			width += 8 - (width % 8);
-		else
-			width++;
-	}
-
-	return width;
-}
-
-int
-prev_page(int pos)
-{
-	int col;
-	int cols = ws.ws_col - MARGIN - 4;
-
-	pos -= pos > 0 ? 1 : 0;
-	for (col = 0; pos > 0; pos--)
-		if ((col += width(matchv[pos]) + 2) > cols)
-			return pos + 1;
-	return pos;
-}
-
-int
-next_page(int pos)
-{
-	int col, cols = ws.ws_col - MARGIN - 4;
-
-	for (col = 0; pos < matchc; pos++)
-		if ((col += width(matchv[pos]) + 2) > cols)
-			return pos;
-	return pos;
-}
-
 void
 move(signed int sign)
 {
@@ -72,21 +33,11 @@ move_page(signed int sign)
 {
 	int i;
 
-	if (opt['l'] <= 0) {
-		if (sign > 0) {
-			offset = current = next;
-			next   = next_page(next);
-		} else if (sign < 0) {
-			next   = offset;
-			offset = current = prev_page(offset);
-		}
-	} else {
-		i = current - current % rows + rows * sign;
-		if (!(0 < i && i < matchc))
-			return;
-		current = i - 1;
-		move(+1);
-	}
+	i = current - current % rows + rows * sign;
+	if (!(0 < i && i < matchc))
+		return;
+	current = i - 1;
+	move(+1);
 }
 
 static void

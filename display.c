@@ -40,60 +40,40 @@ format(char *str, int cols)
 }
 
 static void
-print_lines(void)
+print_line(char *line, int cur)
 {
-	int printed = 0, i = current - current % rows;
-
-	for (; printed < rows && i < matchc; i++, printed++) {
-		fprintf(stderr,
-			opt['#'] && matchv[i][0] == '#' ?
-			"\n\x1b[1m\x1b[K %s\x1b[m"      :
-			i == current                    ?
-			"\n\x1b[47;30m\x1b[K %s\x1b[m"      :
-			"\n\x1b[K %s",
-			format(matchv[i], ws.ws_col - 1)
-		);
+	if (opt['#'] && line[0] == '#') {
+		format(line + 1, ws.ws_col - 1);
+		fprintf(stderr, "\n\x1b[1m\x1b[K %s\x1b[m", formatted);
+	} else if (cur) {
+		format(line, ws.ws_col - 1);
+		fprintf(stderr, "\n\x1b[47;30m\x1b[K %s\x1b[m", formatted);
+	} else {
+		format(line, ws.ws_col - 1);
+		fprintf(stderr, "\n\x1b[K %s", formatted);
 	}
-	while (printed++ < rows)
-		fputs("\n\x1b[K", stderr);
-	fprintf(stderr, "\x1b[%dA\r\x1b[K", rows);
-}
-
-static void
-print_segments(void)
-{
-	int i;
-
-	if (current < offset) {
-		next   = offset;
-		offset = prev_page(offset);
-	} else if (current >= next) {
-		offset = next;
-		next   = next_page(offset);
-	}
-	fprintf(stderr, "\r\x1b[K\x1b[%dC", MARGIN);
-	fputs(offset > 0 ? "< " : "  ", stderr);
-	for (i = offset; i < next && i < matchc; i++) {
-		fprintf(stderr,
-			opt['#'] && matchv[i][0] == '#' ? "\x1b[1m %s \x1b[m" :
-			i == current ? "\x1b[7m %s \x1b[m" : " %s ",
-			format(matchv[i], ws.ws_col - 1)
-		);
-	}
-	if (next < matchc)
-		fprintf(stderr, "\x1b[%dC\b>", ws.ws_col - MARGIN);
-	fputc('\r', stderr);
 }
 
 void
 print_screen(void)
 {
+	char **m;
+	int p;
+	int i;
 	int cols = ws.ws_col - 1;
 
-	if (opt['l'] > 0)
-		print_lines();
-	else
-		print_segments();
+	p = 0;
+	i = current - current % rows;
+	m = matchv + i;
+	while (p < rows && i < matchc) {
+		print_line(*m, i == current);
+		p++, i++, m++;
+	}
+	while (p < rows) {
+		fputs("\n\x1b[K", stderr);
+		p++;
+	}
+	fprintf(stderr, "\x1b[%dA\r\x1b[K", rows);
 	if (*prompt) {
 		format(prompt, cols - 2);
 		fprintf(stderr, "\x1b[30;47m %s \x1b[m", formatted);

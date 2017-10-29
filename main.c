@@ -103,7 +103,7 @@ parse_opt(int argc, char *argv[])
 			usage();
 		switch ((*argv)[1]) {
 		case 'l':
-			if (!--argc || sscanf(*++argv, "%d", &opt['l']) <= 0)
+			if (!--argc || (opt['l'] = atoi(*++argv)) <= 0)
 				usage();
 			break;
 		case 'p':
