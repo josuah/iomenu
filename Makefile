@@ -1,6 +1,6 @@
 CFLAGS = -std=c89 -Wpedantic -Wall -Wextra -g -D_POSIX_C_SOURCE=200809L
 
-OBJ = iomenu.o utf8.o
+OBJ = buffer.o control.o display.o main.o utf8.o
 
 all: iomenu
 
@@ -15,3 +15,5 @@ install: iomenu
 	cp *.1    $(PREFIX)/share/man/man1
 	mkdir -p  $(PREFIX)/bin
 	cp iomenu $(PREFIX)/bin
+
+.PHONY: all clean install

@@ -1,3 +1,5 @@
+#include "utf8.h"
+
 /*
  * ASCII all have a leading '0' byte:
  *
@@ -28,7 +30,6 @@
 
 #include "utf8.h"
 
-
 /*
  * Return the number of bytes in rune for the `n` next char in `s`,
  * or 0 if ti is misencoded.
@@ -56,19 +57,17 @@ utf8_len(char *s)
 	return len;
 }
 
-
 /*
  * Return the number of bytes required to encode `rune` into UTF-8, or
  * 0 if rune is too long.
  */
 size_t
-rune_len(long r)
+utf8_rune_len(long r)
 {
 	return (r <= 0x0000007f) ? 1 : (r <= 0x000007ff) ? 2 :
 	       (r <= 0x0000ffff) ? 3 : (r <= 0x001fffff) ? 4 :
 	       (r <= 0x03ffffff) ? 5 : (r <= 0x7fffffff) ? 6 : 0;
 }
-
 
 /*
  * Sets 'r' to a rune corresponding to the firsts 'n' bytes of 's'.
@@ -92,12 +91,11 @@ utf8_to_rune(long *r, char *s)
 		*r = (*r << 6) | (*s++ & 0x3f);  /* 10xxxxxx */
 
 	/* overlong sequences */
-	if (rune_len(*r) != len)
+	if (utf8_rune_len(*r) != len)
 		return 0;
 
 	return len;
 }
-
 
 /*
  * Returns 1 if the rune is a valid unicode code point and 0 if not.
@@ -118,7 +116,6 @@ rune_is_unicode(long r)
 		(0x00d800 <= r && r <= 0x00dfff)     /* surrogates */
 	);
 }
-
 
 /*
  * Return 1 if '*s' is correctly encoded in UTF-8 with allowed Unicode
@@ -146,7 +143,7 @@ utf8_check(char *s)
  * Return 1 if the rune is a printable character, and 0 otherwise.
  */
 int
-rune_is_print(long r)
+utf8_is_print(long r)
 {
 	return (0x1f < r && r != 0x7f && r < 0x80) || 0x9f < r;
 }
