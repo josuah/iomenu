@@ -44,13 +44,13 @@ print_line(char *line, int cur)
 {
 	if (opt['#'] && line[0] == '#') {
 		format(line + 1, ws.ws_col - 1);
-		fprintf(stderr, "\n\x1b[1m\x1b[K %s\x1b[m", formatted);
+		fprintf(stderr, "\n\x1b[1m %s\x1b[m", formatted);
 	} else if (cur) {
 		format(line, ws.ws_col - 1);
 		fprintf(stderr, "\n\x1b[47;30m\x1b[K %s\x1b[m", formatted);
 	} else {
 		format(line, ws.ws_col - 1);
-		fprintf(stderr, "\n\x1b[K %s", formatted);
+		fprintf(stderr, "\n %s", formatted);
 	}
 }
 
@@ -65,15 +65,11 @@ print_screen(void)
 	p = 0;
 	i = current - current % rows;
 	m = matchv + i;
+	fputs("\x1b[H;\x1b[J", stderr);
 	while (p < rows && i < matchc) {
 		print_line(*m, i == current);
 		p++, i++, m++;
 	}
-	while (p < rows) {
-		fputs("\n\x1b[K", stderr);
-		p++;
-	}
-	fprintf(stderr, "\x1b[%dA\r\x1b[K", rows);
 	if (*prompt) {
 		format(prompt, cols - 2);
 		fprintf(stderr, "\x1b[30;47m %s \x1b[m", formatted);
@@ -103,5 +99,4 @@ print_selection(void)
 		puts(input);
 	else
 		puts(matchv[current]);
-	fputs("\r\x1b[K", stderr);
 }

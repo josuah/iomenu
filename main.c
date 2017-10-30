@@ -47,16 +47,11 @@ set_terminal(void)
 {
 	struct termios new;
 
-	/* save currentsor postition */
-	fputs("\x1b[s", stderr);
-
-	/* save attributes to `termios` */
+	fputs("\x1b[s\x1b[?1049h", stderr);
 	if (tcgetattr(ttyfd, &termios) < 0 || tcgetattr(ttyfd, &new) < 0) {
 		perror("tcgetattr");
 		exit(EXIT_FAILURE);
 	}
-
-	/* change to raw mode */
 	new.c_lflag &= ~(ICANON | ECHO | IGNBRK | IEXTEN | ISIG);
 	tcsetattr(ttyfd, TCSANOW, &new);
 }
@@ -64,15 +59,7 @@ set_terminal(void)
 static void
 reset_terminal(void)
 {
-	int i;
-
-	/* clear terminal */
-	for (i = 0; i < rows + 1; i++)
-		fputs("\r\x1b[K\n", stderr);
-
-	/* reset currentsor position */
-	fputs("\x1b[u", stderr);
-
+	fputs("\x1b[u\033[?1049l", stderr);
 	tcsetattr(ttyfd, TCSANOW, &termios);
 }
 
