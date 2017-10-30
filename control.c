@@ -34,7 +34,7 @@ move_page(signed int sign)
 	int i;
 
 	i = current - current % rows + rows * sign;
-	if (!(0 < i && i < matchc))
+	if (!(0 <= i && i < matchc))
 		return;
 	current = i - 1;
 	move(+1);
