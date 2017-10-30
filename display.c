@@ -65,11 +65,12 @@ print_screen(void)
 	p = 0;
 	i = current - current % rows;
 	m = matchv + i;
-	fputs("\x1b[H;\x1b[J", stderr);
+	fputs("\x1b[2J", stderr);
 	while (p < rows && i < matchc) {
 		print_line(*m, i == current);
 		p++, i++, m++;
 	}
+	fputs("\x1b[H", stderr);
 	if (*prompt) {
 		format(prompt, cols - 2);
 		fprintf(stderr, "\x1b[30;47m %s \x1b[m", formatted);
