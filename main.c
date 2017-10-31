@@ -47,7 +47,7 @@ set_terminal(void)
 {
 	struct termios new;
 
-	fputs("\x1b[s\x1b[?1049h", stderr);
+	fputs("\x1b[s\x1b[?1049h\x1b[H", stderr);
 	if (tcgetattr(ttyfd, &termios) < 0 || tcgetattr(ttyfd, &new) < 0) {
 		perror("tcgetattr");
 		exit(EXIT_FAILURE);

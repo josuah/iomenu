@@ -79,29 +79,33 @@ read_stdin(void)
 void
 filter(void)
 {
-	int tokc = 0;
-	int n = 0;
-	int i;
-	char **tokv = NULL;
-	char *s;
-	char buffer[sizeof (input)];
 	extern char **linev;
-	extern current;
+	extern int    current;
+	int           tokc;
+	int           n;
+	char        **tokv = NULL;
+	char         *s;
+	char          buf[sizeof (input)];
 
 	current = offset = next = 0;
-	strcpy(buffer, input);
-	for (s = strtok(buffer, " "); s; s = strtok(NULL, " "), tokc++) {
+	strcpy(buf, input);
+	tokc = 0;
+	n = 0;
+	s = strtok(buf, " ");
+	while (s) {
 		if (tokc >= n) {
 			tokv = realloc(tokv, ++n * sizeof (*tokv));
 			if (tokv == NULL)
 				die("realloc");
 		}
 		tokv[tokc] = s;
+		s = strtok(NULL, " ");
+		tokc++;
 	}
 	matchc = 0;
-	for (i = 0; i < linec; i++)
-		if (match_line(linev[i], tokv, tokc))
-			matchv[matchc++] = linev[i];
+	for (n = 0; n < linec; n++)
+		if (match_line(linev[n], tokv, tokc))
+			matchv[matchc++] = linev[n];
 	free(tokv);
 	if (opt['#'] && matchv[current][0] == '#')
 		move(+1);
