@@ -32,6 +32,7 @@ static void
 move_page(signed int sign)
 {
 	int i;
+	int rows = ws.ws_row - 1;
 
 	i = current - current % rows + rows * sign;
 	if (!(0 <= i && i < matchc))

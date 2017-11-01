@@ -61,6 +61,7 @@ print_screen(void)
 	int p;
 	int i;
 	int cols = ws.ws_col - 1;
+	int rows = ws.ws_row - 1;
 
 	p = 0;
 	i = current - current % rows;

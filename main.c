@@ -27,7 +27,6 @@ char            *prompt = "";
 char             input[LINE_MAX];
 char             formatted[LINE_MAX * 8];
 int              current = 0;
-int              rows = 0;
 int              opt[128];
 
 void
@@ -66,7 +65,6 @@ sigwinch()
 {
 	if (ioctl(ttyfd, TIOCGWINSZ, &ws) < 0)
 		die("ioctl");
-	rows = MIN(opt['l'], ws.ws_row - 1);
 	print_screen();
 	signal(SIGWINCH, sigwinch);
 }
@@ -74,7 +72,7 @@ sigwinch()
 static void
 usage(void)
 {
-	fputs("iomenu [-#] [-l lines] [-p prompt]\n", stderr);
+	fputs("iomenu [-#] [-p prompt]\n", stderr);
 	exit(EXIT_FAILURE);
 }
 
@@ -82,15 +80,10 @@ static void
 parse_opt(int argc, char *argv[])
 {
 	memset(opt, 0, 128 * sizeof (int));
-	opt['l'] = 255;
 	for (argv++, argc--; argc > 0; argv++, argc--) {
 		if (argv[0][0] != '-')
 			usage();
 		switch ((*argv)[1]) {
-		case 'l':
-			if (!--argc || (opt['l'] = atoi(*++argv)) <= 0)
-				usage();
-			break;
 		case 'p':
 			if (!--argc)
 				usage();
@@ -98,11 +91,6 @@ parse_opt(int argc, char *argv[])
 			break;
 		case '#':
 			opt['#'] = 1;
-			break;
-		case 's':
-			if (!--argc)
-				usage();
-			opt['s'] = (int) **++argv;
 			break;
 		default:
 			usage();

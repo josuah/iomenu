@@ -19,7 +19,6 @@ match_line(char *line, char **tokv, int tokc)
 	while (tokc-- > 0)
 		if (strstr(line, tokv[tokc]) == NULL)
 			return 0;
-
 	return 1;
 }
 
@@ -49,6 +48,8 @@ split_lines(char *buf)
 	b = buf;
 	while ((b = strchr(b + 1, '\n')))
 		linec++;
+	if (!linec)
+		linec = 1;
 	if (!(lv = linev = calloc(linec, sizeof (char **))))
 		die("calloc");
 	if (!(mv = matchv = calloc(linec, sizeof (char **)))) {
@@ -70,14 +71,19 @@ read_stdin(void)
 	size_t len;
 	size_t off;
 	char *buf;
+	char *b;
 
 	off = 0;
 	buf = malloc(size);
 	while ((len = read(STDIN_FILENO, buf + off, size - off)) > 0) {
 		off += len;
-		if (off > size >> 1) {
+		if (off >= size >> 1) {
 			size <<= 1;
-			buf = realloc(buf, size);
+			if (!(b = realloc(buf, size + 1))) {
+				free(buf);
+				die("realloc");
+			}
+			buf = b;
 		}
 	}
 	buf[off] = '\0';

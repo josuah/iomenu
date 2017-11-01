@@ -16,4 +16,3 @@ extern char             input[LINE_MAX];
 extern char             formatted[LINE_MAX * 8];
 extern int              current;
 extern int              opt[128];
-extern int              rows;
