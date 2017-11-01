@@ -50,17 +50,17 @@ split_lines(char *buf)
 		linec++;
 	if (!linec)
 		linec = 1;
-	if (!(lv = linev = calloc(linec, sizeof (char **))))
+	if (!(lv = linev = calloc(linec + 1, sizeof (char **))))
 		die("calloc");
-	if (!(mv = matchv = calloc(linec, sizeof (char **)))) {
+	if (!(mv = matchv = calloc(linec + 1, sizeof (char **)))) {
 		free(linev);
 		die("calloc");
 	}
 	*mv = *lv = b = buf;
 	while ((b = strchr(b, '\n'))) {
-		*b++ = '\0';
+		*b = '\0';
 		mv++, lv++;
-		*mv = *lv = b;
+		*mv = *lv = ++b;
 	}
 }
 
