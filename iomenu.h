@@ -15,7 +15,5 @@ extern char            *prompt;
 extern char             input[LINE_MAX];
 extern char             formatted[LINE_MAX * 8];
 extern int              current;
-extern int              offset;
-extern int              next;
 extern int              opt[128];
 extern int              rows;

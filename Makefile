@@ -11,7 +11,7 @@ iomenu: $(OBJ)
 $(OBJ): $(INC)
 
 clean:
-	rm -f *.o iomenu
+	rm -f *.o *.core iomenu
 
 install: iomenu
 	mkdir -p  $(PREFIX)/share/man/man1

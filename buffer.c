@@ -4,30 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <unistd.h>
 
 #include "iomenu.h"
 #include "buffer.h"
 #include "main.h"
 #include "control.h"
-
-static char *
-read_line(FILE *fp)
-{
-	char *line;
-	size_t len;
-
-	line = malloc(LINE_MAX + 1);
-	if (!(fgets(line, LINE_MAX, fp))) {
-		free(line);
-		return NULL;
-	}
-
-	len = strlen(line);
-	if (len > 0 && line[len - 1] == '\n')
-		line[len - 1] = '\0';
-
-	return (line);
-}
 
 static int
 match_line(char *line, char **tokv, int tokc)
@@ -47,8 +29,7 @@ free_lines(void)
 	extern char **linev;
 
 	if (linev) {
-		for (; linec > 0; linec--)
-			free(linev[linec - 1]);
+		free(linev[0]);
 		free(linev);
 	}
 	if (matchv)
@@ -56,24 +37,51 @@ free_lines(void)
 }
 
 void
+split_lines(char *buf)
+{
+	extern char **linev;
+	extern int linec;
+	char *b;
+	char **lv;
+	char **mv;
+
+	linec = 0;
+	b = buf;
+	while ((b = strchr(b + 1, '\n')))
+		linec++;
+	if (!(lv = linev = calloc(linec, sizeof (char **))))
+		die("calloc");
+	if (!(mv = matchv = calloc(linec, sizeof (char **)))) {
+		free(linev);
+		die("calloc");
+	}
+	*mv = *lv = b = buf;
+	while ((b = strchr(b, '\n'))) {
+		*b++ = '\0';
+		mv++, lv++;
+		*mv = *lv = b;
+	}
+}
+
+void
 read_stdin(void)
 {
-	int size = 0;
-	extern char **linev;
+	size_t size = BUFSIZ;
+	size_t len;
+	size_t off;
+	char *buf;
 
-	while (1) {
-		if (linec >= size) {
-			size += BUFSIZ;
-			linev = realloc(linev,  sizeof (char **) * size);
-			matchv = realloc(matchv, sizeof (char **) * size);
-			if (!linev || !matchv)
-				die("realloc");
+	off = 0;
+	buf = malloc(size);
+	while ((len = read(STDIN_FILENO, buf + off, size - off)) > 0) {
+		off += len;
+		if (off > size >> 1) {
+			size <<= 1;
+			buf = realloc(buf, size);
 		}
-		if ((linev[linec] = read_line(stdin)) == NULL)
-			break;
-		linec++;
-		matchc++;
 	}
+	buf[off] = '\0';
+	split_lines(buf);
 }
 
 void
@@ -87,7 +95,7 @@ filter(void)
 	char         *s;
 	char          buf[sizeof (input)];
 
-	current = offset = next = 0;
+	current = 0;
 	strcpy(buf, input);
 	tokc = 0;
 	n = 0;

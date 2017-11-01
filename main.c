@@ -27,9 +27,7 @@ char            *prompt = "";
 char             input[LINE_MAX];
 char             formatted[LINE_MAX * 8];
 int              current = 0;
-int              offset = 0;
 int              rows = 0;
-int              next = 0;
 int              opt[128];
 
 void
