@@ -11,6 +11,10 @@
 #include "main.h"
 #include "control.h"
 
+/*
+ * Keep the line if it match every token (in no particular order, and allowed to
+ * be overlapping).
+ */
 static int
 match_line(char *line, char **tokv, int tokc)
 {
@@ -22,10 +26,15 @@ match_line(char *line, char **tokv, int tokc)
 	return 1;
 }
 
+/*
+ * As we use a single buffer for the whole stdin, we only need to free it once
+ * and it will free all the lines.
+ */
 void
 free_lines(void)
 {
-	extern char **linev;
+	extern	char	**linev;
+	extern	char	**matchv;
 
 	if (linev) {
 		free(linev[0]);
@@ -35,14 +44,20 @@ free_lines(void)
 		free(matchv);
 }
 
+/*
+ * Split a buffer into an array of lines, without allocating memory for every
+ * line, but using the input buffer and replacing characters.
+ */
 void
 split_lines(char *buf)
 {
-	extern char **linev;
-	extern int linec;
-	char *b;
-	char **lv;
-	char **mv;
+	extern	char	**linev;
+	extern	char	**matchv;
+	extern	int	  linec;
+
+	char	 *b;
+	char	**lv;
+	char	**mv;
 
 	linec = 0;
 	b = buf;
@@ -64,15 +79,20 @@ split_lines(char *buf)
 	}
 }
 
+/*
+ * Read stdin in a single malloc-ed buffer, realloc-ed to twice its size every
+ * time the previous buffer is filled.
+ */
 void
 read_stdin(void)
 {
-	size_t size = BUFSIZ;
-	size_t len;
-	size_t off;
-	char *buf;
-	char *b;
+	size_t	 size;
+	size_t	 len;
+	size_t	 off;
+	char	*buf;
+	char	*b;
 
+	size = BUFSIZ;
 	off = 0;
 	buf = malloc(size);
 	while ((len = read(STDIN_FILENO, buf + off, size - off)) > 0) {
@@ -90,17 +110,26 @@ read_stdin(void)
 	split_lines(buf);
 }
 
+/*
+ * First split input into token, then match every token independently against
+ * every line.  The matching lines fills matchv.
+ */
 void
 filter(void)
 {
-	extern char **linev;
-	extern int    current;
-	int           tokc;
-	int           n;
-	char        **tokv = NULL;
-	char         *s;
-	char          buf[sizeof (input)];
+	extern	char	**linev;
+	extern	char	**matchv;
+	extern	int	  linec;
+	extern	int	  matchc;
+	extern	int	  current;
 
+	int	  tokc;
+	int	  n;
+	char	**tokv;
+	char	 *s;
+	char	  buf[sizeof (input)];
+
+	tokv = NULL;
 	current = 0;
 	strcpy(buf, input);
 	tokc = 0;

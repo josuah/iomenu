@@ -11,6 +11,8 @@
 static char *
 format(char *str, int cols)
 {
+	extern	struct	winsize ws;
+
 	int   col = 0;
 	long  rune = 0;
 	char *fmt = formatted;
@@ -42,6 +44,8 @@ format(char *str, int cols)
 static void
 print_line(char *line, int cur)
 {
+	extern	struct	winsize ws;
+
 	if (opt['#'] && line[0] == '#') {
 		format(line + 1, ws.ws_col - 1);
 		fprintf(stderr, "\n\x1b[1m %s\x1b[m", formatted);
@@ -57,12 +61,20 @@ print_line(char *line, int cur)
 void
 print_screen(void)
 {
-	char **m;
-	int p;
-	int i;
-	int cols = ws.ws_col - 1;
-	int rows = ws.ws_row - 1;
+	extern	struct	winsize ws;
+	extern	char	**matchv;
+	extern	char	 *prompt;
+	extern	char	  input[LINE_MAX];
+	extern	int	  matchc;
 
+	char	**m;
+	int	  p;
+	int	  i;
+	int	  cols;
+	int	  rows;
+
+	cols = ws.ws_col - 1;
+	rows = ws.ws_row - 1;
 	p = 0;
 	i = current - current % rows;
 	m = matchv + i;
@@ -85,6 +97,10 @@ print_screen(void)
 void
 print_selection(void)
 {
+	extern	char	**matchv;
+	extern	char	  input[LINE_MAX];
+	extern	int	  matchc;
+
 	char **match;
 
 	if (opt['#']) {

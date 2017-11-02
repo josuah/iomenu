@@ -11,14 +11,17 @@
 #include "control.h"
 #include "display.h"
 
-#define CTL(char) ((char) ^ 0x40)
-#define ALT(char) ((char) + 0x80)
-#define CSI(char) ((char) + 0x80 + 0x80)
+#define CTL(char)	((char) ^ 0x40)
+#define ALT(char)	((char) + 0x80)
+#define CSI(char)	((char) + 0x80 + 0x80)
 
 void
 move(signed int sign)
 {
-	int i;
+	extern	char	**matchv;
+	extern	int	  matchc;
+
+	int	i;
 
 	for (i = current + sign; 0 <= i && i < matchc; i += sign) {
 		if (!opt['#'] || matchv[i][0] != '#') {
@@ -31,9 +34,13 @@ move(signed int sign)
 static void
 move_page(signed int sign)
 {
-	int i;
-	int rows = ws.ws_row - 1;
+	extern	struct	winsize ws;
+	extern	int	matchc;
 
+	int	i;
+	int	rows;
+
+	rows = ws.ws_row - 1;
 	i = current - current % rows + rows * sign;
 	if (!(0 <= i && i < matchc))
 		return;
@@ -44,6 +51,8 @@ move_page(signed int sign)
 static void
 remove_word()
 {
+	extern	char	input[LINE_MAX];
+
 	int len;
 	int i;
 
@@ -59,6 +68,8 @@ remove_word()
 static void
 add_char(char c)
 {
+	extern	char	input[LINE_MAX];
+
 	int len;
 
 	len = strlen(input);
@@ -69,9 +80,17 @@ add_char(char c)
 	filter();
 }
 
+/*
+ * Big case table, that calls itself back for with ALT (aka ESC), CSI
+ * (aka ESC + [).  These last two have values above the range of ASCII.
+ */
 int
 key(int k)
 {
+	extern	char	**matchv;
+	extern	char	  input[LINE_MAX];
+	extern	int	  linec;
+
 top:
 	switch (k) {
 	case CTL('C'):
@@ -99,14 +118,14 @@ top:
 	case CSI('5'):  /* page up */
 		if (fgetc(stdin) != '~')
 			break;
-		/* fallthrough */
+		/* FALLTHROUGH */
 	case ALT('v'):
 		move_page(-1);
 		break;
 	case CSI('6'):  /* page down */
 		if (fgetc(stdin) != '~')
 			break;
-		/* fallthrough */
+		/* FALLTHROUGH */
 	case CTL('V'):
 		move_page(+1);
 		break;

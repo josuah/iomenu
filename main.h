@@ -1,1 +1,1 @@
-void die (const char *);
+void	die(const char *);

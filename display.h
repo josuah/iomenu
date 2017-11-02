@@ -1,2 +1,2 @@
-void print_screen    (void);
-void print_selection (void);
+void	print_screen(void);
+void	print_selection(void);

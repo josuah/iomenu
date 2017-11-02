@@ -1,7 +1,3 @@
-#include <stddef.h>
-
-#include "utf8.h"
-
 /*
  * ASCII all have a leading '0' byte:
  *
@@ -27,6 +23,7 @@
  */
 
 #include <ctype.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
