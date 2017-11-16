@@ -1,22 +1,24 @@
 CFLAGS = -std=c89 -pedantic -Wall -Wextra -g -D_POSIX_C_SOURCE=200809L
 
-OBJ = buffer.o control.o display.o main.o utf8.o
-INC = buffer.h control.h display.h main.h utf8.h iomenu.h
+OBJ = iomenu.o utf8.o
 
 all: iomenu
 
-iomenu: $(OBJ)
-	$(CC) $(LDFLAGS) $(OBJ) -o $@
+.c.o:
+	${CC} -c -o $@ ${CFLAGS} $<
 
-$(OBJ): $(INC)
+iomenu: ${OBJ}
+	${CC} -o $@ ${LDFLAGS} ${OBJ}
+
+${OBJ}: utf8.h
 
 clean:
 	rm -f *.o *.core iomenu
 
 install: iomenu
-	mkdir -p  $(PREFIX)/share/man/man1
-	cp *.1    $(PREFIX)/share/man/man1
-	mkdir -p  $(PREFIX)/bin
-	cp iomenu $(PREFIX)/bin
+	mkdir -p  ${PREFIX}/share/man/man1
+	cp *.1    ${PREFIX}/share/man/man1
+	mkdir -p  ${PREFIX}/bin
+	cp iomenu ${PREFIX}/bin
 
 .PHONY: all clean install
