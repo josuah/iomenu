@@ -119,7 +119,8 @@ read_stdin(void)
 
 	size = BUFSIZ;
 	off = 0;
-	buf = malloc(size);
+	if (!(buf = malloc(size)))
+		die("malloc");
 	while ((len = read(STDIN_FILENO, buf + off, size - off)) > 0) {
 		off += len;
 		if (off >= size >> 1) {
