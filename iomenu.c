@@ -58,12 +58,10 @@ free_lines(void)
 	extern	char	**linev;
 	extern	char	**matchv;
 
-	if (linev) {
+	if (linev)
 		free(linev[0]);
-		free(linev);
-	}
-	if (matchv)
-		free(matchv);
+	free(linev);
+	free(matchv);
 }
 
 /*
