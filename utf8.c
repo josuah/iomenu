@@ -97,48 +97,6 @@ utf8_to_rune(long *r, char *s)
 }
 
 /*
- * Returns 1 if the rune is a valid unicode code point and 0 if not.
- */
-int
-rune_is_unicode(long r)
-{
-	return !(
-		(r > 0x10ffff)                   ||  /* outside range */
-
-		((r & 0x00fffe) == 0x00fffe)     ||  /* noncharacters */
-		(0x00fdd0 <= r && r <= 0x00fdef) ||
-
-		(0x00e000 <= r && r <= 0x00f8ff) ||  /* private use */
-		(0x0f0000 <= r && r <= 0x0ffffd) ||
-		(0x100000 <= r && r <= 0x10fffd) ||
-
-		(0x00d800 <= r && r <= 0x00dfff)     /* surrogates */
-	);
-}
-
-/*
- * Return 1 if '*s' is correctly encoded in UTF-8 with allowed Unicode
- * code points.
- */
-int
-utf8_check(char *s)
-{
-	size_t shift, len = strlen(s);
-	long r = 0;
-
-	while (len > 0) {
-		shift = utf8_to_rune(&r, s);
-		if (!shift || !rune_is_unicode(r))
-			return 0;
-
-		s   += shift;
-		len -= shift;
-	}
-
-	return 1;
-}
-
-/*
  * Return 1 if the rune is a printable character, and 0 otherwise.
  */
 int
