@@ -49,22 +49,6 @@ match_line(char *line, char **tokv, int tokc)
 }
 
 /*
- * As we use a single buffer for the whole stdin, we only need to free it once
- * and it will free all the lines.
- */
-static void
-free_lines(void)
-{
-	extern	char	**linev;
-	extern	char	**matchv;
-
-	if (linev)
-		free(linev[0]);
-	free(linev);
-	free(matchv);
-}
-
-/*
  * Free the structures, reset the terminal state and exit with an error message.
  */
 static void
@@ -72,7 +56,6 @@ die(const char *s)
 {
 	tcsetattr(ttyfd, TCSANOW, &termios);
 	close(ttyfd);
-	free_lines();
 	perror(s);
 	exit(EXIT_FAILURE);
 }
@@ -511,7 +494,7 @@ main(int argc, char *argv[])
 		die("freopen /dev/tty");
 	if (!freopen("/dev/tty", "w", stderr))
 		die("freopen /dev/tty");
-	ttyfd =  open("/dev/tty", O_RDWR);
+	ttyfd = open("/dev/tty", O_RDWR);
 	set_terminal();
 	sigwinch();
 	input[0] = '\0';
@@ -520,7 +503,6 @@ main(int argc, char *argv[])
 	print_screen();
 	reset_terminal();
 	close(ttyfd);
-	free_lines();
 
 	return exit_code;
 }
