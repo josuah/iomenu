@@ -97,10 +97,8 @@ split_lines(char *buf)
 		linec = 1;
 	if (!(lv = linev = calloc(linec + 1, sizeof (char **))))
 		die("calloc");
-	if (!(mv = matchv = calloc(linec + 1, sizeof (char **)))) {
-		free(linev);
+	if (!(mv = matchv = calloc(linec + 1, sizeof (char **))))
 		die("calloc");
-	}
 	*mv = *lv = b = buf;
 	while ((b = strchr(b, '\n'))) {
 		*b = '\0';
@@ -117,7 +115,7 @@ static void
 read_stdin(void)
 {
 	size_t	size, len, off;
-	char	*buf, *b;
+	char	*buf;
 
 	size = BUFSIZ;
 	off = 0;
@@ -126,11 +124,8 @@ read_stdin(void)
 		off += len;
 		if (off >= size >> 1) {
 			size <<= 1;
-			if (!(b = realloc(buf, size + 1))) {
-				free(buf);
+			if (!(buf = realloc(buf, size + 1)))
 				die("realloc");
-			}
-			buf = b;
 		}
 	}
 	buf[off] = '\0';
