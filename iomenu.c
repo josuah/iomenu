@@ -98,13 +98,13 @@ read_stdin(void)
 
 	size = BUFSIZ;
 	off = 0;
-	if (!(buf = malloc(size)))
+	if ((buf = malloc(size)) == NULL)
 		die("malloc");
 	while ((len = read(STDIN_FILENO, buf + off, size - off)) > 0) {
 		off += len;
 		if (off >= size >> 1) {
 			size <<= 1;
-			if (!(buf = realloc(buf, size + 1)))
+			if ((buf = realloc(buf, size + 1)) == NULL)
 				die("realloc");
 		}
 	}
