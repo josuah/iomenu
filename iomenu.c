@@ -75,9 +75,9 @@ split_lines(char *buf)
 	linec = 1;
 	for (b = buf; (b = strchr(b, '\n')) != NULL && b[1] != '\0'; b++)
 		linec++;
-	if ((lv = linev = calloc(linec, sizeof (char **))) == NULL)
+	if ((lv = linev = calloc(linec + 1, sizeof (char **))) == NULL)
 		die("calloc");
-	if ((mv = matchv = calloc(linec, sizeof (char **))) == NULL)
+	if ((mv = matchv = calloc(linec + 1, sizeof (char **))) == NULL)
 		die("calloc");
 	*mv = *lv = b = buf;
 	while ((b = strchr(b, '\n')) != NULL) {
