@@ -72,21 +72,17 @@ split_lines(char *buf)
 
 	char	*b, **lv, **mv;
 
-	linec = 0;
-	b = buf;
-	while ((b = strchr(b + 1, '\n')))
+	linec = 1;
+	for (b = buf; (b = strchr(b, '\n')) != NULL && b[1] != '\0'; b++)
 		linec++;
-	if (!linec)
-		linec = 1;
-	if (!(lv = linev = calloc(linec + 1, sizeof (char **))))
+	if ((lv = linev = calloc(linec, sizeof (char **))) == NULL)
 		die("calloc");
-	if (!(mv = matchv = calloc(linec + 1, sizeof (char **))))
+	if ((mv = matchv = calloc(linec, sizeof (char **))) == NULL)
 		die("calloc");
 	*mv = *lv = b = buf;
-	while ((b = strchr(b, '\n'))) {
+	while ((b = strchr(b, '\n')) != NULL) {
 		*b = '\0';
-		mv++, lv++;
-		*mv = *lv = ++b;
+		*++mv = *++lv = ++b;
 	}
 }
 
