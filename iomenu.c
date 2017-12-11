@@ -26,7 +26,7 @@ static	struct	termios termios;
 static	int	ttyfd;
 
 struct winsize	ws;
-int		linec = 0, matchc = 0, current = 0;
+int		linec = 0, matchc = 0, cur = 0;
 char		**linev = NULL, **matchv = NULL;
 char		input[LINE_MAX], formatted[LINE_MAX * 8];
 
@@ -102,8 +102,8 @@ read_stdin(void)
 		die("malloc");
 	while ((len = read(STDIN_FILENO, buf + off, size - off)) > 0) {
 		off += len;
-		if (off >= size >> 1) {
-			size <<= 1;
+		if (off == size) {
+			size *= 2;
 			if ((buf = realloc(buf, size + 1)) == NULL)
 				die("realloc");
 		}
@@ -120,9 +120,9 @@ move(signed int sign)
 
 	int	i;
 
-	for (i = current + sign; 0 <= i && i < matchc; i += sign) {
+	for (i = cur + sign; 0 <= i && i < matchc; i += sign) {
 		if (!flag_hs || matchv[i][0] != '#') {
-			current = i;
+			cur = i;
 			break;
 		}
 	}
@@ -136,13 +136,13 @@ static void
 filter(void)
 {
 	extern char	**linev, **matchv;
-	extern int	linec, matchc, current;
+	extern int	linec, matchc, cur;
 
 	int	tokc, n;
 	char	**tokv, *s, buf[sizeof (input)];
 
 	tokv = NULL;
-	current = 0;
+	cur = 0;
 	strcpy(buf, input);
 	tokc = 0;
 	n = 0;
@@ -162,7 +162,7 @@ filter(void)
 		if (match_line(linev[n], tokv, tokc))
 			matchv[matchc++] = linev[n];
 	free(tokv);
-	if (flag_hs && matchv[current][0] == '#')
+	if (flag_hs && matchv[cur][0] == '#')
 		move(+1);
 }
 
@@ -172,14 +172,13 @@ move_page(signed int sign)
 	extern	struct	winsize ws;
 	extern	int	matchc;
 
-	int	i;
-	int	rows;
+	int	i, rows;
 
 	rows = ws.ws_row - 1;
-	i = current - current % rows + rows * sign;
+	i = cur - cur % rows + rows * sign;
 	if (!(0 <= i && i < matchc))
 		return;
-	current = i - 1;
+	cur = i - 1;
 	move(+1);
 }
 
@@ -188,8 +187,7 @@ remove_word()
 {
 	extern	char	input[LINE_MAX];
 
-	int len;
-	int i;
+	int	len, i;
 
 	len = strlen(input) - 1;
 	for (i = len; i >= 0 && isspace(input[i]); i--)
@@ -205,7 +203,7 @@ add_char(char c)
 {
 	extern	char	input[LINE_MAX];
 
-	int len;
+	int	len;
 
 	len = strlen(input);
 	if (isprint(c)) {
@@ -218,14 +216,13 @@ add_char(char c)
 static void
 print_selection(void)
 {
-	extern	char	**matchv;
-	extern	char	  input[LINE_MAX];
+	extern	char	**matchv, input[LINE_MAX];
 	extern	int	  matchc;
 
-	char **match;
+	char	**match;
 
 	if (flag_hs) {
-		match = matchv + current;
+		match = matchv + cur;
 		while (--match >= matchv) {
 			if ((*match)[0] == '#') {
 				fputs(*match + 1, stdout);
@@ -234,10 +231,10 @@ print_selection(void)
 		}
 		putchar('\t');
 	}
-	if (matchc == 0 || (flag_hs && matchv[current][0] == '#'))
+	if (matchc == 0 || (flag_hs && matchv[cur][0] == '#'))
 		puts(input);
 	else
-		puts(matchv[current]);
+		puts(matchv[cur]);
 }
 
 /*
@@ -247,8 +244,7 @@ print_selection(void)
 int
 key(int k)
 {
-	extern	char	**matchv;
-	extern	char	  input[LINE_MAX];
+	extern	char	**matchv, input[LINE_MAX];
 	extern	int	  linec;
 
 top:
@@ -291,7 +287,7 @@ top:
 		break;
 	case CTL('I'):  /* tab */
 		if (linec > 0)
-			strcpy(input, matchv[current]);
+			strcpy(input, matchv[cur]);
 		filter();
 		break;
 	case CTL('J'):  /* enter */
@@ -314,12 +310,14 @@ top:
 static char *
 format(char *str, int cols)
 {
-	extern	struct	winsize ws;
+	extern struct winsize	ws;
 
-	int   col = 0;
-	long  rune = 0;
-	char *fmt = formatted;
+	int	col;
+	long	rune;
+	char	*fmt;
 
+	col = rune = 0;
+	fmt = formatted;
 	while (*str && col < cols) {
 		if (*str == '\t') {
 			int t = 8 - col % 8;
@@ -345,14 +343,14 @@ format(char *str, int cols)
 }
 
 static void
-print_line(char *line, int cur)
+print_line(char *line, int highlight)
 {
 	extern	struct	winsize ws;
 
 	if (flag_hs && line[0] == '#') {
 		format(line + 1, ws.ws_col - 1);
 		fprintf(stderr, "\n\x1b[1m %s\x1b[m", formatted);
-	} else if (cur) {
+	} else if (highlight) {
 		format(line, ws.ws_col - 1);
 		fprintf(stderr, "\n\x1b[47;30m\x1b[K %s\x1b[m", formatted);
 	} else {
@@ -364,26 +362,21 @@ print_line(char *line, int cur)
 static void
 print_screen(void)
 {
-	extern	struct	winsize ws;
-	extern	char	**matchv;
-	extern	char	 *flag_p;
-	extern	char	  input[LINE_MAX];
-	extern	int	  matchc;
+	extern struct winsize	ws;
+	extern char		**matchv, *flag_p, input[LINE_MAX];
+	extern int		matchc;
 
 	char	**m;
-	int	  p;
-	int	  i;
-	int	  cols;
-	int	  rows;
+	int	  p, i, cols, rows;
 
 	cols = ws.ws_col - 1;
 	rows = ws.ws_row - 1;
 	p = 0;
-	i = current - current % rows;
+	i = cur - cur % rows;
 	m = matchv + i;
 	fputs("\x1b[2J", stderr);
 	while (p < rows && i < matchc) {
-		print_line(*m, i == current);
+		print_line(*m, i == cur);
 		p++, i++, m++;
 	}
 	fputs("\x1b[H", stderr);
@@ -403,7 +396,7 @@ print_screen(void)
 static void
 set_terminal(void)
 {
-	struct	termios new;
+	struct termios	new;
 
 	fputs("\x1b[s\x1b[?1049h\x1b[H", stderr);
 	if (tcgetattr(ttyfd, &termios) < 0 || tcgetattr(ttyfd, &new) < 0) {
