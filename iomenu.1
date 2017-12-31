@@ -1,163 +1,81 @@
 .Dd aug 21, 2017
 .Dt IOMENU 1
 .Os
-.
-.
 .Sh NAME
-.
-.
 .Nm iomenu
 .Nd interactive selection menu
-.
-.
 .Sh SYNOPSIS
-.
-.
 .Nm
 .Op Fl #
 .Op Fl p Ar prompt
-.
-.
 .Sh DESCRIPTION
-.
-.
 .Nm
 is an interactive filtering and selection tool for the terminal.
-.
 .Pp
-.
 It reads lines from standard input, and prompt for a selection.
 The selected line is printed to standard output.
-.
 .Bl -tag -width XXXXXXXXXXXXXXXX
-.
 .It Fl p Ar prompt
 Set the prompt to display at the beginning of the input to
 .Ar prompt .
-.
 .It Fl #
 If a line starts with
 .Li # ,
 .Nm
 will interprete it as a header, which always matches, and can not be
 printed.
-.
 .Pp
-.
-.
 .Sh KEY BINDINGS
-.
-.
 An active selection is highlighted, and can be controlled with keybindings.
 As printable keys are entered, the lines are filtered to match each
 word from the input.
-.
 .Bl -tag -width XXXXXXXXXXXXXXX
-.
 .It Ic Up Ns , Ic Down Ns , Ic Ctrl + p Ns , Ic Ctrl + n
 Move selection to the previous/next item.
-.
 .It Ic PageUp Ns , Ic PageDown Ns , Ic Alt + v Ns , Ic Ctrl + v
 Move one page up or down.
-.
 .It Ic Ctrl + m Ns , Ic Ctrl + j Ns , Ic Enter
 Print the selection to the standard output, and exit 0.
-.
 .It Ic Ctrl + h Ns , Ic Bakcspace
 Remove last character from current input.
-.
 .It Ic Ctrl + w
 Remove last word from current input.
-.
 .It Ic Ctrl + u
 Remove the whole input string.
-.
 .It Ic Ctrl + i Ns , Ic Tab
 Fill the input with current selection.
-.
 .El
-.
-.
 .Sh EXIT STATUS
-.
-.
 .Ex -std
-.
-.
 .Sh EXAMPLES
-.
-.
-Open a bookmark from a list in a text file:
-.
-.Bd -literal -offset XX
-iomenu < bookmarks-urls.txt | xargs firefox
-.Ed
-.
-.Pp
-.
 Go to a subdirectory:
-.
 .Bd -literal -offset XX
 cd "$(find . -type d | iomenu)"
 .Ed
-.
 .Pp
-.
 Edit a file located in
 .Ev HOME :
-.
 .Bd -literal -offset XX
-EDITOR "$(find "$HOME" -type f | iomenu -l 255)"
+$EDITOR "$(find "$HOME" -type f | iomenu)"
 .Ed
-.
 .Pp
-.
 Play an audio file:
-.
 .Bd -literal -offset XX
 mplayer "$(find ~/Music | iomenu)"
 .Ed
-.
 .Pp
-.
 Select a background job to attach to:
-.
 .Bd -literal -offset XX
 fg "%$(jobs | iomenu | cut -c 2)"
 .Ed
-.
 .Pp
-.
 Filter "ps" output and print a process ID
-.
 .Bd -literal -offset XX
-{ printf '# '; ps ax; } | iomenu -l 255 -s | sed -r 's/ *([0-9]*).*/\1/'
+{ printf '#'; ps ax; } | iomenu -# | sed -r 's/ *([0-9]*).*/\1/'
 .Ed
-.
-.
 .Sh SEE ALSO
-.
-.
 .Xr dmenu 1 ,
 .Xr slmenu 1 ,
 .Xr vis-menu 1
-.
-.
-.Sh BUGS
-.
-.
-.Nm
-currently only support ASCII characters.
-.
-.
 .Sh AUTORS
-.
-.
-.Nm
-was written from scratch by
 .An Josuah Demangeon Aq Mt mail@josuah.net
-with the help of
-.Xr dmenu 1
-and
-.Xr vis-menu 1
-as models.
