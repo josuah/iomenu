@@ -33,6 +33,27 @@ char		input[LINE_MAX], formatted[LINE_MAX * 8];
 char	*flag_p = "";
 int	flag_hs = 0;
 
+static char *
+strcasestr(const char *str1, const char *str2)
+{
+	const	char	*s1;
+	const	char	*s2;
+
+	while (1) {
+		s1 = str1;
+		s2 = str2;
+		while (*s1 != '\0' && tolower(*s1) == tolower(*s2))
+			s1++, s2++;
+		if (*s2 == '\0')
+			return (char *) str1;
+		if (*s1 == '\0')
+			return NULL;
+		str1++;
+	}
+
+	return NULL;
+}
+
 /*
  * Keep the line if it match every token (in no particular order, and allowed to
  * be overlapping).
@@ -43,7 +64,7 @@ match_line(char *line, char **tokv, int tokc)
 	if (flag_hs && line[0] == '#')
 		return 2;
 	while (tokc-- > 0)
-		if (strstr(line, tokv[tokc]) == NULL)
+		if (strcasestr(line, tokv[tokc]) == NULL)
 			return 0;
 	return 1;
 }
@@ -143,7 +164,8 @@ filter(void)
 
 	tokv = NULL;
 	cur = 0;
-	strcpy(buf, input);
+	strncpy(buf, input, sizeof(input));
+	buf[sizeof(input) - 1] = '\0';
 	tokc = 0;
 	n = 0;
 	s = strtok(buf, " ");
@@ -286,8 +308,10 @@ top:
 		move_page(+1);
 		break;
 	case CTL('I'):  /* tab */
-		if (linec > 0)
-			strcpy(input, matchv[cur]);
+		if (linec > 0) {
+			strncpy(input, matchv[cur], sizeof(input));
+			input[sizeof(input) - 1] = '\0';
+		}
 		filter();
 		break;
 	case CTL('J'):  /* enter */
