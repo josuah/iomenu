@@ -350,7 +350,7 @@ format(char *str, int cols)
 				col++;
 			}
 			str++;
-		} else if (utf8_to_rune(&rune, str) && utf8_is_print(rune)) {
+		} else if (utf8_torune(&rune, str) && utf8_isprint(rune)) {
 			int i = utf8_len(str);
 			while (i--)
 				*fmt++ = *str++;
