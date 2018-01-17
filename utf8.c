@@ -26,8 +26,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>	/* only used for wcwidth() */
 
+#include "wcwidth.h"
 #include "utf8.h"
 
 /*
@@ -65,20 +65,20 @@ utf8_len(char *s)
  * 0 if rune is too long.
  */
 size_t
-utf8_runelen(long r)
+utf8_runelen(long rune)
 {
-	return	(r <= 0x0000007f) ? 1 : (r <= 0x000007ff) ? 2 :
-		(r <= 0x0000ffff) ? 3 : (r <= 0x001fffff) ? 4 :
-		(r <= 0x03ffffff) ? 5 : (r <= 0x7fffffff) ? 6 : 0;
+	return	(rune <= 0x0000007f) ? 1 : (rune <= 0x000007ff) ? 2 :
+		(rune <= 0x0000ffff) ? 3 : (rune <= 0x001fffff) ? 4 :
+		(rune <= 0x03ffffff) ? 5 : (rune <= 0x7fffffff) ? 6 : 0;
 }
 
 /*
- * Sets 'r' to a rune corresponding to the firsts 'n' bytes of 's'.
+ * Sets `rune' to a rune corresponding to the firsts `n' bytes of `s'.
  *
  * Return the number of bytes read or 0 if the string is misencoded.
  */
 size_t
-utf8_torune(long *r, char *s)
+utf8_torune(long *rune, char *s)
 {
 	char mask[] = { 0x7f, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
 	size_t i, len = utf8_len(s);
@@ -87,56 +87,104 @@ utf8_torune(long *r, char *s)
 		return 0;
 
 	/* first byte */
-	*r = *s++ & mask[len - 1];
+	*rune = *s++ & mask[len - 1];
 
 	/* continuation bytes */
 	for (i = 1; i < len; i++)
-		*r = (*r << 6) | (*s++ & 0x3f);  /* 10xxxxxx */
+		*rune = (*rune << 6) | (*s++ & 0x3f);  /* 10xxxxxx */
 
 	/* overlong sequences */
-	if (utf8_runelen(*r) != len)
+	if (utf8_runelen(*rune) != len)
 		return 0;
 
 	return len;
 }
 
 /*
- *
+ * Encode the rune `rune' in utf-8 in `s', null-terminated, then return the
+ * number of bytes written, 0 if `rune' is invalid.
  */
-utf8_tostr(char *s, long r)
+int
+utf8_tostr(char *s, long rune)
 {
-
+	switch (utf8_runelen(rune)) {
+	case 1:
+		s[0] = rune;				/* 0xxxxxxx */
+		s[1] = '\0';
+		return 1;
+	case 2:
+		s[0] = 0xc0 | (0x1f & (rune >> 6));	/* 110xxxxx */
+		s[1] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
+		s[2] = '\0';
+		return 2;
+	case 3:
+		s[0] = 0xe0 | (0x0f & (rune >> 12));	/* 1110xxxx */
+		s[1] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
+		s[2] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
+		s[3] = '\0';
+		return 3;
+	case 4:
+		s[0] = 0xf0 | (0x07 & (rune >> 18));	/* 11110xxx */
+		s[1] = 0x80 | (0x3f & (rune >> 12));	/* 10xxxxxx */
+		s[2] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
+		s[3] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
+		s[4] = '\0';
+		return 4;
+	case 5:
+		s[0] = 0xf8 | (0x03 & (rune >> 24));	/* 111110xx */
+		s[1] = 0x80 | (0x3f & (rune >> 18));	/* 10xxxxxx */
+		s[2] = 0x80 | (0x3f & (rune >> 12));	/* 10xxxxxx */
+		s[3] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
+		s[4] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
+		s[5] = '\0';
+		return 5;
+	case 6:
+		s[0] = 0xfc | (0x01 & (rune >> 30));	/* 1111110x */
+		s[1] = 0x80 | (0x3f & (rune >> 24));	/* 10xxxxxx */
+		s[2] = 0x80 | (0x3f & (rune >> 18));	/* 10xxxxxx */
+		s[3] = 0x80 | (0x3f & (rune >> 12));	/* 10xxxxxx */
+		s[4] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
+		s[5] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
+		s[6] = '\0';
+		return 6;
+	default:
+		s[0] = '\0';
+		return 0;
+	}
 }
 
 /*
  * Return 1 if the rune is a printable character, and 0 otherwise.
  */
 int
-utf8_isprint(long r)
+utf8_isprint(long rune)
 {
-	return (0x1f < r && r != 0x7f && r < 0x80) || 0x9f < r;
+	return (0x1f < rune && rune != 0x7f && rune < 0x80) || 0x9f < rune;
 }
 
 /*
- * Return a pointer to the first byte of a character of `s' that would be
- * rendered at the `col'-th column in a monospaced terminal, or NULL if the
- * whole string fit.
+ * Return a index of the first byte of a character of `s' that would be rendered
+ * at the `col'-th column in a terminal, or NULL if the whole string fit.  In
+ * order to format tabs properly, the string must start with an offset of `off'
+ * columns.
  */
-char *
-utf8_col(char *s, size_t col)
+int
+utf8_col(char *str, int col, int off)
 {
-	size_t n;
-	long r;
-	char *pos;
+	long rune;
+	char *pos, *s;
 
-	for (n = 0; n < col; n += wcwidth(r)) {
+	for (s = str; off < col;) {
 		pos = s;
 		if (*s == '\0')
-			return NULL;
-		s += utf8_torune(&r, s);
-		utf8_toutf();
-		printf("%zd:'%s' ", n, s);
+			break;
+
+		s += utf8_torune(&rune, s);
+		if (rune == '\t')
+			off += 7 - (off) % 8;
+		else
+			off += mk_wcwidth(rune);
 	}
 
-	return pos;
+	return pos - str;
 }

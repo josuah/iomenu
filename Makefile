@@ -1,6 +1,7 @@
 CFLAGS = -std=c89 -pedantic -Wall -Wextra -g -D_POSIX_C_SOURCE=200809L
 
-OBJ = iomenu.o utf8.o
+SRC = iomenu.c utf8.c
+OBJ = ${SRC:.o=.c}
 
 all: iomenu
 
@@ -9,8 +10,11 @@ all: iomenu
 
 iomenu: ${OBJ}
 	${CC} -o $@ ${LDFLAGS} ${OBJ}
-
 ${OBJ}: utf8.h
+
+test:
+	${CC} -o $@ ${LDFLAGS} test_utf8.c utf8.c
+	./$@
 
 clean:
 	rm -f *.o *.core iomenu
@@ -21,4 +25,4 @@ install: iomenu
 	mkdir -p  ${PREFIX}/bin
 	cp iomenu ${PREFIX}/bin
 
-.PHONY: all clean install
+.PHONY: all test clean install

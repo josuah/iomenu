@@ -4,4 +4,4 @@ size_t	utf8_torune(long *, char *);
 int	utf8_isunicode(long);
 int	utf8_check(char *);
 int	utf8_isprint(long);
-char	*utf8_col();
+int	utf8_col(char *, int, int);
