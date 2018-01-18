@@ -22,22 +22,22 @@
 #define ALT(char)	((char) + 0x80)
 #define CSI(char)	((char) + 0x80 + 0x80)
 
-static	struct	termios termios;
-static	int	ttyfd;
+static struct termios	termios;
+struct winsize		ws;
+static int		ttyfd;
 
-struct winsize	ws;
-int		linec = 0, matchc = 0, cur = 0;
-char		**linev = NULL, **matchv = NULL;
-char		input[LINE_MAX], formatted[LINE_MAX * 8];
+int			linec = 0, matchc = 0, cur = 0;
+char			**linev = NULL, **matchv = NULL;
+char			input[LINE_MAX], formatted[LINE_MAX * 8];
 
-char	*flag_p = "";
-int	flag_hs = 0;
+int			flag_hs = 0;
+char			*flag_p = "";
 
 static char *
-strcasestr(const char *str1, const char *str2)
+io_strstr(const char *str1, const char *str2)
 {
-	const	char	*s1;
-	const	char	*s2;
+	const char	*s1;
+	const char	*s2;
 
 	while (1) {
 		s1 = str1;
@@ -59,12 +59,12 @@ strcasestr(const char *str1, const char *str2)
  * be overlapping).
  */
 static int
-match_line(char *line, char **tokv, int tokc)
+match_line(char *line, char **tokv)
 {
 	if (flag_hs && line[0] == '#')
 		return 2;
-	while (tokc-- > 0)
-		if (strcasestr(line, tokv[tokc]) == NULL)
+	for (; *tokv != NULL; tokv++)
+		if (io_strstr(line, *tokv) == NULL)
 			return 0;
 	return 1;
 }
@@ -149,6 +149,16 @@ move(signed int sign)
 	}
 }
 
+static void
+tokenize(char **tokv, char *str)
+{
+	while ((*tokv = strsep(&str, " \t")) != NULL) {
+		if (**tokv != '\0')
+			tokv++;
+	}
+	*tokv = NULL;
+}
+
 /*
  * First split input into token, then match every token independently against
  * every line.  The matching lines fills matchv.
@@ -159,31 +169,18 @@ filter(void)
 	extern char	**linev, **matchv;
 	extern int	linec, matchc, cur;
 
-	int	tokc, n;
-	char	**tokv, *s, buf[sizeof (input)];
+	int	n;
+	char	*tokv[sizeof(input) / 2 * sizeof(char *) + sizeof(NULL)];
+	char	*s, buf[sizeof(input)];
 
-	tokv = NULL;
 	cur = 0;
 	strncpy(buf, input, sizeof(input));
 	buf[sizeof(input) - 1] = '\0';
-	tokc = 0;
-	n = 0;
-	s = strtok(buf, " ");
-	while (s) {
-		if (tokc >= n) {
-			tokv = realloc(tokv, ++n * sizeof (*tokv));
-			if (tokv == NULL)
-				die("realloc");
-		}
-		tokv[tokc] = s;
-		s = strtok(NULL, " ");
-		tokc++;
-	}
+	tokenize(tokv, buf);
 	matchc = 0;
 	for (n = 0; n < linec; n++)
-		if (match_line(linev[n], tokv, tokc))
+		if (match_line(linev[n], tokv))
 			matchv[matchc++] = linev[n];
-	free(tokv);
 	if (flag_hs && matchv[cur][0] == '#')
 		move(+1);
 }
@@ -332,33 +329,33 @@ top:
 }
 
 static char *
-format(char *str, int cols)
+format(char *str, int col)
 {
 	extern struct winsize	ws;
+	extern char		formatted[LINE_MAX * 8];
 
-	int	col;
-	long	rune;
+	int	c, n, w;
+	long	rune = 0;
 	char	*fmt;
 
-	col = rune = 0;
 	fmt = formatted;
-	while (*str && col < cols) {
+	for (c = 0; *str != '\0' && c < col; ) {
 		if (*str == '\t') {
-			int t = 8 - col % 8;
-			while (t-- && col < cols) {
+			int t = 8 - c % 8;
+			while (t-- && c < col) {
 				*fmt++ = ' ';
-				col++;
+				c++;
 			}
 			str++;
-		} else if (utf8_torune(&rune, str) && utf8_isprint(rune)) {
-			int i = utf8_len(str);
-			while (i--)
+		} else if ((n = utf8_torune(&rune, str)) > 0 &&
+		    (w = utf8_wcwidth(rune)) > 0) {
+			while (n--)
 				*fmt++ = *str++;
-			col++;
+			c += w;
 		} else {
 			*fmt++ = '?';
-			col++;
-			str++;
+			str += n;
+			c ++;
 		}
 	}
 	*fmt = '\0';

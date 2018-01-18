@@ -12,8 +12,8 @@ iomenu: ${OBJ}
 	${CC} -o $@ ${LDFLAGS} ${OBJ}
 ${OBJ}: utf8.h
 
-test:
-	${CC} -o $@ ${LDFLAGS} test_utf8.c utf8.c
+test: test.c
+	${CC} -o $@ ${LDFLAGS} test.c utf8.c
 	./$@
 
 clean:
