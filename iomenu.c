@@ -161,26 +161,27 @@ tokenize(char **tokv, char *str)
 
 /*
  * First split input into token, then match every token independently against
- * every line.  The matching lines fills matchv.
+ * every line.  The matching lines fills matchv.  Matches are searched inside
+ * of `searchv' of size `searchc'
  */
 static void
-filter(void)
+filter(int searchc, char **searchv)
 {
-	extern char	**linev, **matchv;
-	extern int	linec, matchc, cur;
+	extern char	**matchv;
+	extern int	matchc, cur;
 
 	int	n;
 	char	*tokv[sizeof(input) / 2 * sizeof(char *) + sizeof(NULL)];
 	char	*s, buf[sizeof(input)];
 
-	cur = 0;
 	strncpy(buf, input, sizeof(input));
 	buf[sizeof(input) - 1] = '\0';
 	tokenize(tokv, buf);
-	matchc = 0;
-	for (n = 0; n < linec; n++)
-		if (match_line(linev[n], tokv))
-			matchv[matchc++] = linev[n];
+
+	cur = matchc = 0;
+	for (n = 0; n < searchc; n++)
+		if (match_line(searchv[n], tokv))
+			matchv[matchc++] = searchv[n];
 	if (flag_hs && matchv[cur][0] == '#')
 		move(+1);
 }
@@ -214,7 +215,7 @@ remove_word()
 	len = strlen(input) - 1;
 	for (i = len; i >= 0 && !isspace(input[i]); i--)
 		input[i] = '\0';
-	filter();
+	filter(linec, linev);
 }
 
 static void
@@ -229,7 +230,7 @@ add_char(char c)
 		input[len]     = c;
 		input[len + 1] = '\0';
 	}
-	filter();
+	filter(matchc, matchv);
 }
 
 static void
@@ -272,7 +273,7 @@ top:
 		return -1;
 	case CTL('U'):
 		input[0] = '\0';
-		filter();
+		filter(linec, linev);
 		break;
 	case CTL('W'):
 		remove_word();
@@ -280,7 +281,7 @@ top:
 	case 127:
 	case CTL('H'):  /* backspace */
 		input[strlen(input) - 1] = '\0';
-		filter();
+		filter(linec, linev);
 		break;
 	case CSI('A'):  /* up */
 	case CTL('P'):
@@ -309,7 +310,7 @@ top:
 			strncpy(input, matchv[cur], sizeof(input));
 			input[sizeof(input) - 1] = '\0';
 		}
-		filter();
+		filter(matchc, matchv);
 		break;
 	case CTL('J'):  /* enter */
 	case CTL('M'):
@@ -499,7 +500,7 @@ main(int argc, char *argv[])
 
 	parse_opt(argc, argv);
 	read_stdin();
-	filter();
+	filter(linec, linev);
 	if (!freopen("/dev/tty", "r", stdin))
 		die("freopen /dev/tty");
 	if (!freopen("/dev/tty", "w", stderr))
