@@ -6,10 +6,10 @@ int
 main(void)
 {
 	int c, col, o, off;
-	char s[] = "	浪漫的夢想";
+	char s[] = "\t\t浪漫的夢想";
 
-	for (off = 0; off < 10; off++) {
-		for (col = off + 1; col < 25; col++) {
+	for (off = 0; off < 15; off++) {
+		for (col = off + 1; col < 30; col++) {
 			for (c = 0; c < col; c++)
 				putchar(c % 8 == 0 ? '>' : '_');
 			printf(" %d\n", col);

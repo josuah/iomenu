@@ -173,14 +173,14 @@ utf8_col(char *str, int col, int off)
 	long rune;
 	char *pos, *s;
 
-	for (s = str; off < col;) {
+	for (s = str; off <= col;) {
 		pos = s;
 		if (*s == '\0')
 			break;
 
 		s += utf8_torune(&rune, s);
 		if (rune == '\t')
-			off += 7 - (off) % 8;
+			off += 8 - (off % 8);
 		else
 			off += utf8_wcwidth(rune);
 	}
