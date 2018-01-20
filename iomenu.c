@@ -392,7 +392,7 @@ set_terminal(void)
 static void
 reset_terminal(void)
 {
-	fputs("\x1b[u\033[?1049l", stderr);
+	fputs("\x1b[2J\x1b[u\033[?1049l", stderr);
 	tcsetattr(ttyfd, TCSANOW, &termios);
 }
 
