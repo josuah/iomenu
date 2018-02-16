@@ -18,7 +18,7 @@
 #endif
 
 #define MIN(X, Y)	(((X) < (Y)) ? (X) : (Y))
-#define CTL(char)	((char) ^ 0x40)
+#define CTL(char)	((char) | 0x40)
 #define ALT(char)	((char) + 0x80)
 #define CSI(char)	((char) + 0x80 + 0x80)
 
@@ -54,9 +54,9 @@ io_strstr(const char *str1, const char *str2)
 }
 
 /*
- * Keep the line if it match every token (in no particular order, and allowed to
- * be overlapping).
- */
+** Keep the line if it match every token (in no particular order, and allowed to
+** be overlapping).
+*/
 static int
 match_line(char *line, char **tokv)
 {
@@ -69,8 +69,8 @@ match_line(char *line, char **tokv)
 }
 
 /*
- * Free the structures, reset the terminal state and exit with an error message.
- */
+** Free the structures, reset the terminal state and exit with an error message.
+*/
 static void
 err(const char *s)
 {
@@ -81,9 +81,9 @@ err(const char *s)
 }
 
 /*
- * Split a buffer into an array of lines, without allocating memory for every
- * line, but using the input buffer and replacing characters.
- */
+** Split a buffer into an array of lines, without allocating memory for every
+** line, but using the input buffer and replacing characters.
+*/
 static void
 split_lines(char *buf)
 {
@@ -107,9 +107,9 @@ split_lines(char *buf)
 }
 
 /*
- * Read stdin in a single malloc-ed buffer, realloc-ed to twice its size every
- * time the previous buffer is filled.
- */
+** Read stdin in a single malloc-ed buffer, realloc-ed to twice its size every
+** time the previous buffer is filled.
+*/
 static void
 read_stdin(void)
 {
@@ -159,10 +159,10 @@ tokenize(char **tokv, char *str)
 }
 
 /*
- * First split input into token, then match every token independently against
- * every line.  The matching lines fills matchv.  Matches are searched inside
- * of `searchv' of size `searchc'
- */
+** First split input into token, then match every token independently against
+** every line.  The matching lines fills matchv.  Matches are searched inside
+** of `searchv' of size `searchc'
+*/
 static void
 filter(int searchc, char **searchv)
 {
@@ -257,9 +257,9 @@ print_selection(void)
 }
 
 /*
- * Big case table, that calls itself back for with ALT (aka ESC), CSI
- * (aka ESC + [).  These last two have values above the range of ASCII.
- */
+** Big case table, that calls itself back for with ALT (aka ESC), CSI
+** (aka ESC + [).  These last two have values above the range of ASCII.
+*/
 int
 key(int k)
 {
@@ -370,8 +370,8 @@ print_screen(void)
 }
 
 /*
- * Set terminal in raw mode.
- */
+** Set terminal in raw mode.
+*/
 static void
 set_terminal(void)
 {
@@ -387,8 +387,8 @@ set_terminal(void)
 }
 
 /*
- * Take terminal out of raw mode.
- */
+** Take terminal out of raw mode.
+*/
 static void
 reset_terminal(void)
 {
@@ -397,8 +397,8 @@ reset_terminal(void)
 }
 
 /*
- * Redraw the whole screen on window resize.
- */
+** Redraw the whole screen on window resize.
+*/
 static void
 sigwinch()
 {
@@ -418,8 +418,8 @@ usage(void)
 }
 
 /*
- * XXX: switch to getopt.
- */
+** XXX: switch to getopt.
+*/
 static void
 parse_opt(int argc, char *argv[])
 {
@@ -457,10 +457,10 @@ init(void)
 }
 
 /*
- * Read stdin in a buffer, filling a table of lines, then re-open stdin to
- * /dev/tty for an interactive (raw) session to let the user filter and select
- * one line by searching words within stdin.  This was inspired from dmenu.
- */
+** Read stdin in a buffer, filling a table of lines, then re-open stdin to
+** /dev/tty for an interactive (raw) session to let the user filter and select
+** one line by searching words within stdin.  This was inspired from dmenu.
+*/
 int
 main(int argc, char *argv[])
 {

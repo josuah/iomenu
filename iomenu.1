@@ -74,38 +74,24 @@ Fill the input with current selection.
 .Sh EXAMPLES
 .
 Go to a subdirectory:
-.
-.Bd -literal -offset XX
-cd "$(find . -type d | iomenu)"
-.Ed
+.Dl cd "$(find . -type d | iomenu)"
 .
 .Pp
 Edit a file located in
 .Ev HOME :
-.
-.Bd -literal -offset XX
-$EDITOR "$(find "$HOME" -type f | iomenu)"
-.Ed
+.Dl $EDITOR "$(find "$HOME" -type f | iomenu)"
 .
 .Pp
 Play an audio file:
-.
-.Bd -literal -offset XX
-mplayer "$(find ~/Music | iomenu)"
-.Ed
+.Dl mplayer "$(find ~/Music | iomenu)"
 .
 .Pp
 Select a background job to attach to:
-.
-.Bd -literal -offset XX
-fg "%$(jobs | iomenu | cut -c 2)"
-.Ed
+.Dl fg "%$(jobs | iomenu | cut -c 2)"
 .
 .Pp
-Filter "ps" output and print a process ID
-.Bd -literal -offset XX
-{ printf '#'; ps ax; } | iomenu -# | sed -r 's/ *([0-9]*).*/\1/'
-.Ed
+Filter "ps" output and print a process ID:
+.Dl { printf '#'; ps ax; } | iomenu -# | sed -r 's/ *([0-9]*).*/\1/'
 .
 .
 .Sh SEE ALSO
