@@ -1,6 +1,6 @@
 CFLAGS = -std=c89 -pedantic -Wall -Wextra -g -D_POSIX_C_SOURCE=200809L
 
-SRC = iomenu.c utf8.c
+SRC = iomenu.c utf8.c strcasestr.c
 OBJ = ${SRC:.o=.c}
 
 all: iomenu
@@ -8,16 +8,19 @@ all: iomenu
 .c.o:
 	${CC} -c -o $@ ${CFLAGS} $<
 
-iomenu: ${OBJ}
+iomenu: ${OBJ} utf8.h str.h
 	${CC} -o $@ ${LDFLAGS} ${OBJ}
-${OBJ}: utf8.h
+
+utf8.c: utf8.h
+
+strcasestr.c: str.h
 
 test: test.c
 	${CC} -o $@ ${LDFLAGS} test.c utf8.c
 	./$@
 
 clean:
-	rm -f *.o *.core iomenu
+	rm -f *.o *.core iomenu test
 
 install: iomenu
 	mkdir -p  ${PREFIX}/share/man/man1

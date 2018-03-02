@@ -12,13 +12,14 @@
 #include <unistd.h>
 
 #include "utf8.h"
+#include "str.h"
 
 #ifndef SIGWINCH
 #define SIGWINCH	28
 #endif
 
 #define MIN(X, Y)	(((X) < (Y)) ? (X) : (Y))
-#define CTL(char)	((char) | 0x40)
+#define CTL(char)	((char) & ~0x40)
 #define ALT(char)	((char) + 0x80)
 #define CSI(char)	((char) + 0x80 + 0x80)
 
@@ -26,32 +27,11 @@ static struct termios	termios;
 struct winsize		ws;
 static int		ttyfd;
 
-int			linec = 0, matchc = 0, cur = 0;
-char			**linev = NULL, **matchv = NULL;
-char			input[LINE_MAX], formatted[LINE_MAX * 8];
+static int		linec = 0, matchc = 0, cur = 0;
+static char		**linev = NULL, **matchv = NULL;
+static char		input[LINE_MAX], formatted[LINE_MAX * 8];
 
-int			flag_hs = 0;
-
-static char *
-io_strstr(const char *str1, const char *str2)
-{
-	const char	*s1;
-	const char	*s2;
-
-	for (;;) {
-		s1 = str1;
-		s2 = str2;
-		while (*s1 != '\0' && tolower(*s1) == tolower(*s2))
-			s1++, s2++;
-		if (*s2 == '\0')
-			return (char *) str1;
-		if (*s1 == '\0')
-			return NULL;
-		str1++;
-	}
-
-	return NULL;
-}
+static int		flag_hs = 0;
 
 /*
 ** Keep the line if it match every token (in no particular order, and allowed to
@@ -63,7 +43,7 @@ match_line(char *line, char **tokv)
 	if (flag_hs && line[0] == '#')
 		return 2;
 	for (; *tokv != NULL; tokv++)
-		if (io_strstr(line, *tokv) == NULL)
+		if (strcasestr(line, *tokv) == NULL)
 			return 0;
 	return 1;
 }
@@ -267,6 +247,8 @@ key(int k)
 	extern	int	  linec;
 
 top:
+	printf("{%d}", k);
+	fflush(stdout);
 	switch (k) {
 	case CTL('C'):
 		return -1;
@@ -382,7 +364,7 @@ set_terminal(void)
 		perror("tcgetattr");
 		exit(EXIT_FAILURE);
 	}
-	new.c_lflag &= ~(ICANON | ECHO | IGNBRK | IEXTEN | ISIG);
+	new.c_lflag &= ~(ICANON | ECHO | IEXTEN | IGNBRK);
 	tcsetattr(ttyfd, TCSANOW, &new);
 }
 
@@ -396,18 +378,19 @@ reset_terminal(void)
 	tcsetattr(ttyfd, TCSANOW, &termios);
 }
 
-/*
-** Redraw the whole screen on window resize.
-*/
 static void
-sigwinch()
+sighandle(int sig)
 {
 	extern struct winsize	ws;
 
-	if (ioctl(ttyfd, TIOCGWINSZ, &ws) < 0)
-		err("ioctl");
-	print_screen();
-	signal(SIGWINCH, sigwinch);
+	switch (sig) {
+	case SIGWINCH:
+		if (ioctl(ttyfd, TIOCGWINSZ, &ws) < 0)
+			err("ioctl");
+		print_screen();
+		break;
+	}
+	signal(sig, sighandle);
 }
 
 static void
@@ -453,7 +436,7 @@ init(void)
 		err("open /dev/tty");
 
 	set_terminal();
-	sigwinch();
+	sighandle(SIGWINCH);
 }
 
 /*
