@@ -247,8 +247,6 @@ key(int k)
 	extern	int	  linec;
 
 top:
-	printf("{%d}", k);
-	fflush(stdout);
 	switch (k) {
 	case CTL('C'):
 		return -1;
