@@ -10,6 +10,7 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #include "utf8.h"
 #include "str.h"
@@ -398,16 +399,13 @@ usage(void)
 	exit(EXIT_FAILURE);
 }
 
-/*
-** XXX: switch to getopt.
-*/
 static void
 parse_opt(int argc, char *argv[])
 {
-	for (argv++, argc--; argc > 0; argv++, argc--) {
-		if (argv[0][0] != '-')
-			usage();
-		switch ((*argv)[1]) {
+	int	c;
+
+	while ((c = getopt(argc, argv, "#")) != -1) {
+		switch (c) {
 		case '#':
 			flag_hs = 1;
 			break;
