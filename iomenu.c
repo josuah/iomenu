@@ -10,10 +10,10 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
-#include <getopt.h>
 
 #include "utf8.h"
 #include "str.h"
+#include "arg.h"
 
 #ifndef SIGWINCH
 #define SIGWINCH	28
@@ -27,12 +27,11 @@
 static struct termios	termios;
 struct winsize		ws;
 static int		ttyfd;
-
 static int		linec = 0, matchc = 0, cur = 0;
 static char		**linev = NULL, **matchv = NULL;
 static char		input[LINE_MAX], formatted[LINE_MAX * 8];
-
-static int		flag_hs = 0;
+static int		hsflag = 0;
+char			*argv0;
 
 /*
 ** Keep the line if it match every token (in no particular order, and allowed to
@@ -41,7 +40,7 @@ static int		flag_hs = 0;
 static int
 match_line(char *line, char **tokv)
 {
-	if (flag_hs && line[0] == '#')
+	if (hsflag && line[0] == '#')
 		return 2;
 	for (; *tokv != NULL; tokv++)
 		if (strcasestr(line, *tokv) == NULL)
@@ -122,7 +121,7 @@ move(int direction)
 	int	i;
 
 	for (i = cur + direction; 0 <= i && i < matchc; i += direction) {
-		if (!flag_hs || matchv[i][0] != '#') {
+		if (!hsflag || matchv[i][0] != '#') {
 			cur = i;
 			break;
 		}
@@ -162,7 +161,7 @@ filter(int searchc, char **searchv)
 	for (n = 0; n < searchc; n++)
 		if (match_line(searchv[n], tokv))
 			matchv[matchc++] = searchv[n];
-	if (flag_hs && matchv[cur][0] == '#')
+	if (hsflag && matchv[cur][0] == '#')
 		move(+1);
 }
 
@@ -221,7 +220,7 @@ print_selection(void)
 
 	char	**match;
 
-	if (flag_hs) {
+	if (hsflag) {
 		match = matchv + cur;
 		while (--match >= matchv) {
 			if ((*match)[0] == '#') {
@@ -231,7 +230,7 @@ print_selection(void)
 		}
 		putchar('\t');
 	}
-	if (matchc == 0 || (flag_hs && matchv[cur][0] == '#'))
+	if (matchc == 0 || (hsflag && matchv[cur][0] == '#'))
 		puts(input);
 	else
 		puts(matchv[cur]);
@@ -314,7 +313,7 @@ print_line(char *line, int highlight)
 {
 	extern	struct	winsize ws;
 
-	if (flag_hs && line[0] == '#')
+	if (hsflag && line[0] == '#')
 		fprintf(stderr, "\n\x1b[1m\r%.*s\x1b[m",
 		    utf8_col(line + 1, ws.ws_col, 0), line + 1);
 	else if (highlight)
@@ -399,22 +398,6 @@ usage(void)
 	exit(EXIT_FAILURE);
 }
 
-static void
-parse_opt(int argc, char *argv[])
-{
-	int	c;
-
-	while ((c = getopt(argc, argv, "#")) != -1) {
-		switch (c) {
-		case '#':
-			flag_hs = 1;
-			break;
-		default:
-			usage();
-		}
-	}
-}
-
 void
 init(void)
 {
@@ -445,7 +428,13 @@ main(int argc, char *argv[])
 {
 	int		exit_code;
 
-	parse_opt(argc, argv);
+	ARGBEGIN(argc, argv) {
+	case '#':
+		hsflag = 1;
+		break;
+	default:
+		usage();
+	} ARGEND
 	init();
 
 #ifdef __OpenBSD__
