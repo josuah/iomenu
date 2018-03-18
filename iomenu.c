@@ -24,7 +24,7 @@ struct winsize		ws;
 static int		ttyfd;
 static int		linec = 0, matchc = 0, cur = 0;
 static char		**linev = NULL, **matchv = NULL;
-static char		input[LINE_MAX], formatted[LINE_MAX * 8];
+static char		input[LINE_MAX];
 static int		hsflag = 0;
 char			*argv0;
 
@@ -146,7 +146,7 @@ filter(int searchc, char **searchv)
 
 	int	n;
 	char	*tokv[sizeof(input) * sizeof(char *) + sizeof(NULL)];
-	char	*s, buf[sizeof(input)];
+	char	buf[sizeof(input)];
 
 	strncpy(buf, input, sizeof(input));
 	buf[sizeof(input) - 1] = '\0';
