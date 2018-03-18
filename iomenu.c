@@ -12,17 +12,12 @@
 #include <unistd.h>
 
 #include "utf8.h"
-#include "str.h"
+#include "util.h"
 #include "arg.h"
 
 #ifndef SIGWINCH
 #define SIGWINCH	28
 #endif
-
-#define MIN(X, Y)	(((X) < (Y)) ? (X) : (Y))
-#define CTL(char)	((char) & ~0x40)
-#define ALT(char)	((char) + 0x80)
-#define CSI(char)	((char) + 0x80 + 0x80)
 
 static struct termios	termios;
 struct winsize		ws;
@@ -52,7 +47,7 @@ match_line(char *line, char **tokv)
 ** Free the structures, reset the terminal state and exit with an error message.
 */
 static void
-err(const char *s)
+die(const char *s)
 {
 	tcsetattr(ttyfd, TCSANOW, &termios);
 	close(ttyfd);
@@ -62,7 +57,7 @@ err(const char *s)
 
 /*
 ** Split a buffer into an array of lines, without allocating memory for every
-** line, but using the input buffer and replacing characters.
+** line, but using the input buffer and replacing '\n' by '\0'.
 */
 static void
 split_lines(char *buf)
@@ -76,9 +71,9 @@ split_lines(char *buf)
 	for (b = buf; (b = strchr(b, '\n')) != NULL && b[1] != '\0'; b++)
 		linec++;
 	if ((lv = linev = calloc(linec + 1, sizeof(char **))) == NULL)
-		err("calloc");
+		die("calloc");
 	if ((mv = matchv = calloc(linec + 1, sizeof(char **))) == NULL)
-		err("calloc");
+		die("calloc");
 	*mv = *lv = b = buf;
 	while ((b = strchr(b, '\n')) != NULL) {
 		*b = '\0';
@@ -99,13 +94,13 @@ read_stdin(void)
 	size = BUFSIZ;
 	off = 0;
 	if ((buf = malloc(size)) == NULL)
-		err("malloc");
+		die("malloc");
 	while ((len = read(STDIN_FILENO, buf + off, size - off)) > 0) {
 		off += len;
 		if (off == size) {
 			size *= 2;
 			if ((buf = realloc(buf, size + 1)) == NULL)
-				err("realloc");
+				die("realloc");
 		}
 	}
 	buf[off] = '\0';
@@ -237,14 +232,14 @@ print_selection(void)
 }
 
 /*
-** Big case table, that calls itself back for with ALT (aka ESC), CSI
-** (aka ESC + [).  These last two have values above the range of ASCII.
+** Big case table, that calls itself back for with ALT (aka Esc), CSI
+** (aka Esc + [).  These last two have values above the range of ASCII.
 */
 int
 key(int k)
 {
 	extern	char	**matchv, input[LINE_MAX];
-	extern	int	  linec;
+	extern	int	linec;
 
 top:
 	switch (k) {
@@ -258,47 +253,47 @@ top:
 		remove_word();
 		break;
 	case 127:
-	case CTL('H'):  /* backspace */
+	case CTL('H'):	/* backspace */
 		input[strlen(input) - 1] = '\0';
 		filter(linec, linev);
 		break;
-	case CSI('A'):  /* up */
+	case CSI('A'):	/* up */
 	case CTL('P'):
 		move(-1);
 		break;
-	case CSI('B'):  /* down */
+	case CSI('B'):	/* down */
 	case CTL('N'):
 		move(+1);
 		break;
-	case CSI('5'):  /* page up */
+	case CSI('5'):	/* page up */
 		if (fgetc(stdin) != '~')
 			break;
 		/* FALLTHROUGH */
 	case ALT('v'):
 		move_page(-1);
 		break;
-	case CSI('6'):  /* page down */
+	case CSI('6'):	/* page down */
 		if (fgetc(stdin) != '~')
 			break;
 		/* FALLTHROUGH */
 	case CTL('V'):
 		move_page(+1);
 		break;
-	case CTL('I'):  /* tab */
+	case CTL('I'):	/* tab */
 		if (linec > 0) {
 			strncpy(input, matchv[cur], sizeof(input));
 			input[sizeof(input) - 1] = '\0';
 		}
 		filter(matchc, matchv);
 		break;
-	case CTL('J'):  /* enter */
+	case CTL('J'):	/* enter */
 	case CTL('M'):
 		print_selection();
 		return 0;
 	case ALT('['):
 		k = CSI(fgetc(stdin));
 		goto top;
-	case 0x1b: /* escape / alt */
+	case ESC:
 		k = ALT(fgetc(stdin));
 		goto top;
 	default:
@@ -384,7 +379,7 @@ sighandle(int sig)
 	switch (sig) {
 	case SIGWINCH:
 		if (ioctl(ttyfd, TIOCGWINSZ, &ws) < 0)
-			err("ioctl");
+			die("ioctl");
 		print_screen();
 		break;
 	}
@@ -408,11 +403,11 @@ init(void)
 	filter(linec, linev);
 
 	if (freopen("/dev/tty", "r", stdin) == NULL)
-		err("freopen /dev/tty");
+		die("freopen /dev/tty");
 	if (freopen("/dev/tty", "w", stderr) == NULL)
-		err("freopen /dev/tty");
+		die("freopen /dev/tty");
 	if ((ttyfd = open("/dev/tty", O_RDWR)) < 0)
-		err("open /dev/tty");
+		die("open /dev/tty");
 
 	set_terminal();
 	sighandle(SIGWINCH);

@@ -1,160 +1,186 @@
 /*
- * ASCII all have a leading '0' byte:
- *
- *   0xxxxxxx
- *
- * UTF-8(7) have one leading '1' and as many following '1' as there are
- * continuation bytes (with leading '1' and '0').
- *
- *   0xxxxxxx
- *   110xxxxx 10xxxxxx
- *   1110xxxx 10xxxxxx 10xxxxxx
- *   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
- *   111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
- *   1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
- *
- * There is up to 3 continuation bytes -- up to 4 bytes per runes.
- *
- * The whole character value is retreived into an 'x' and stored into a
- * (long)[].
- *
- * Thanks to Connor Lane Smith for the idea of combining switches and
- * binary masks.
- */
+** ASCII all have a leading '0' byte:
+**
+**   0xxxxxxx
+**
+** UTF-8 have one leading '1' and as many following '1' as there are
+** continuation bytes (with leading '1' and '0').
+**
+**   0xxxxxxx
+**   110xxxxx 10xxxxxx
+**   1110xxxx 10xxxxxx 10xxxxxx
+**   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+**   111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+**   1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+**
+** There is up to 3 continuation bytes -- up to 4 bytes per runes.
+*/
 
 #include <ctype.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "utf8.h"
 
-/*
- * Return the number of bytes in rune for the `n` next char in `s`,
- * or 0 if is misencoded or if it is '\0'.
- */
-size_t
-utf8_len(char *s)
+static int
+utflen(char const *str)
 {
-	unsigned char *sp = (unsigned char *) s;
 	int i, len;
+	unsigned char const *s;
 
-	len =	(*sp == 0x0) ? 0 :  /* 00000000 */
-		(*sp < 0x80) ? 1 :  /* 0xxxxxxx < 10000000 */
-		(*sp < 0xc0) ? 0 :  /* 10xxxxxx < 11000000 */
-		(*sp < 0xe0) ? 2 :  /* 110xxxxx < 11100000 */
-		(*sp < 0xf0) ? 3 :  /* 1110xxxx < 11110000 */
-		(*sp < 0xf8) ? 4 :  /* 11110xxx < 11111000 */
-		(*sp < 0xfc) ? 5 :  /* 111110xx < 11111100 */
-		(*sp < 0xfe) ? 6 :  /* 1111110x < 11111110 */
-		(*sp < 0xff) ? 7 :  /* 11111110 < 11111111 */
-	                     0;
+	s = (unsigned char const *)str;
+	len =	(*s < 0x80) ? 1 :  /* 0xxxxxxx < *s < 10000000 */
+		(*s < 0xc0) ? 0 :  /* 10xxxxxx < *s < 11000000 */
+		(*s < 0xe0) ? 2 :  /* 110xxxxx < *s < 11100000 */
+		(*s < 0xf0) ? 3 :  /* 1110xxxx < *s < 11110000 */
+		(*s < 0xf8) ? 4 :  /* 11110xxx < *s < 11111000 */
+		(*s < 0xfc) ? 5 :  /* 111110xx < *s < 11111100 */
+		(*s < 0xfe) ? 6 :  /* 1111110x < *s < 11111110 */
+		(*s < 0xff) ? 7 :  /* 11111110 < *s < 11111111 */
+		0;
 
 	/* check continuation bytes and '\0' */
-	for (sp++, i = 1; i < len; i++, sp++) {
-		if ((*sp & 0xc0) != 0x80)  /* 10xxxxxx & 11000000 */
+	for (s++, i = 1; i < len; i++, s++) {
+		if ((*s & 0xc0) != 0x80)	/* 10xxxxxx & 11000000 */
 			return 0;
 	}
 
 	return len;
 }
 
-/*
- * Return the number of bytes required to encode `rune` into UTF-8, or
- * 0 if rune is too long.
- */
-size_t
-utf8_runelen(long rune)
+static long
+torune(char const **str, size_t len)
 {
-	return	(rune <= 0x0000007f) ? 1 : (rune <= 0x000007ff) ? 2 :
-		(rune <= 0x0000ffff) ? 3 : (rune <= 0x001fffff) ? 4 :
-		(rune <= 0x03ffffff) ? 5 : (rune <= 0x7fffffff) ? 6 : 0;
-}
+	long rune;
+	int n;
+	char mask[] = { 0x00, 0x7f, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
 
-/*
- * Sets `rune' to a rune corresponding to the firsts `n' bytes of `s'.
- *
- * Return the number of bytes read or 0 if the string is misencoded.
- */
-size_t
-utf8_torune(long *rune, char *s)
-{
-	char mask[] = { 0x7f, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
-	size_t i, len = utf8_len(s);
-
-	if (len == 0 || len > 6 || (size_t) len > strlen(s))
+	if (len == 0 || len > 6)
 		return 0;
 
 	/* first byte */
-	*rune = *s++ & mask[len - 1];
+	rune = *(*str)++ & mask[len];
 
 	/* continuation bytes */
-	for (i = 1; i < len; i++)
-		*rune = (*rune << 6) | (*s++ & 0x3f);  /* 10xxxxxx */
+	for (n = len - 1; n > 0; n--, (*str)++)
+		rune = (rune << 6) | (**str & 0x3f);	/* 10xxxxxx */
 
-	/* overlong sequences */
-	if (utf8_runelen(*rune) != len)
+	return rune;
+}
+
+/*
+** Return the number of bytes required to encode <rune> into UTF-8, or
+** 0 if rune is too long.
+*/
+int
+utf8_runelen(long rune)
+{
+	return	(rune <= 0x0000007f) ? 1 :
+		(rune <= 0x000007ff) ? 2 :
+		(rune <= 0x0000ffff) ? 3 :
+		(rune <= 0x001fffff) ? 4 :
+		(rune <= 0x03ffffff) ? 5 :
+		(rune <= 0x7fffffff) ? 6 :
+		0;
+}
+
+/*
+** Return the number of bytes in rune for the next char in <s>, or 0 if
+** is misencoded or if it is '\0'.
+*/
+int
+utf8_utflen(char const *str)
+{
+	long rune;
+	int len;
+
+	len = utflen(str);
+	rune = torune(&str, len);
+	if (len != utf8_runelen(rune))
 		return 0;
 
 	return len;
 }
 
 /*
- * Encode the rune `rune' in utf-8 in `s', null-terminated, then return the
- * number of bytes written, 0 if `rune' is invalid.
- */
+** Return a rune corresponding to the firsts bytes of <str> or -1 if
+** the rune is invalid, and set <str> to the beginning of the next rune.
+*/
+long
+utf8_torune(char const **str)
+{
+	long rune;
+	int len;
+
+	len = utflen(*str);
+	rune = torune(str, len);
+	if (len != utf8_runelen(rune))
+		return -1;
+
+	return rune;
+}
+
+/*
+** Encode the rune <rune> in UTF-8 in <str>, null-terminated, then return the
+** number of bytes written, 0 if <rune> is invalid.
+**
+** Thanks to Connor Lane Smith for the idea of combining switches and
+** binary masks.
+*/
 int
-utf8_tostr(char *s, long rune)
+utf8_tostr(char *str, long rune)
 {
 	switch (utf8_runelen(rune)) {
 	case 1:
-		s[0] = rune;				/* 0xxxxxxx */
-		s[1] = '\0';
+		str[0] = rune;				/* 0xxxxxxx */
+		str[1] = '\0';
 		return 1;
 	case 2:
-		s[0] = 0xc0 | (0x1f & (rune >> 6));	/* 110xxxxx */
-		s[1] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
-		s[2] = '\0';
+		str[0] = 0xc0 | (0x1f & (rune >> 6));	/* 110xxxxx */
+		str[1] = 0x80 | (0x3f & (rune));	/* 10xxxxxx */
+		str[2] = '\0';
 		return 2;
 	case 3:
-		s[0] = 0xe0 | (0x0f & (rune >> 12));	/* 1110xxxx */
-		s[1] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
-		s[3] = '\0';
+		str[0] = 0xe0 | (0x0f & (rune >> 12));	/* 1110xxxx */
+		str[1] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
+		str[2] = 0x80 | (0x3f & (rune));	/* 10xxxxxx */
+		str[3] = '\0';
 		return 3;
 	case 4:
-		s[0] = 0xf0 | (0x07 & (rune >> 18));	/* 11110xxx */
-		s[1] = 0x80 | (0x3f & (rune >> 12));	/* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
-		s[3] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
-		s[4] = '\0';
+		str[0] = 0xf0 | (0x07 & (rune >> 18));	/* 11110xxx */
+		str[1] = 0x80 | (0x3f & (rune >> 12));	/* 10xxxxxx */
+		str[2] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
+		str[3] = 0x80 | (0x3f & (rune));	/* 10xxxxxx */
+		str[4] = '\0';
 		return 4;
 	case 5:
-		s[0] = 0xf8 | (0x03 & (rune >> 24));	/* 111110xx */
-		s[1] = 0x80 | (0x3f & (rune >> 18));	/* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (rune >> 12));	/* 10xxxxxx */
-		s[3] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
-		s[4] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
-		s[5] = '\0';
+		str[0] = 0xf8 | (0x03 & (rune >> 24));	/* 111110xx */
+		str[1] = 0x80 | (0x3f & (rune >> 18));	/* 10xxxxxx */
+		str[2] = 0x80 | (0x3f & (rune >> 12));	/* 10xxxxxx */
+		str[3] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
+		str[4] = 0x80 | (0x3f & (rune));	/* 10xxxxxx */
+		str[5] = '\0';
 		return 5;
 	case 6:
-		s[0] = 0xfc | (0x01 & (rune >> 30));	/* 1111110x */
-		s[1] = 0x80 | (0x3f & (rune >> 24));	/* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (rune >> 18));	/* 10xxxxxx */
-		s[3] = 0x80 | (0x3f & (rune >> 12));	/* 10xxxxxx */
-		s[4] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
-		s[5] = 0x80 | (0x3f & (rune));		/* 10xxxxxx */
-		s[6] = '\0';
+		str[0] = 0xfc | (0x01 & (rune >> 30));	/* 1111110x */
+		str[1] = 0x80 | (0x3f & (rune >> 24));	/* 10xxxxxx */
+		str[2] = 0x80 | (0x3f & (rune >> 18));	/* 10xxxxxx */
+		str[3] = 0x80 | (0x3f & (rune >> 12));	/* 10xxxxxx */
+		str[4] = 0x80 | (0x3f & (rune >> 6));	/* 10xxxxxx */
+		str[5] = 0x80 | (0x3f & (rune));	/* 10xxxxxx */
+		str[6] = '\0';
 		return 6;
 	default:
-		s[0] = '\0';
+		str[0] = '\0';
 		return 0;
 	}
 }
 
 /*
- * Return 1 if the rune is a printable character, and 0 otherwise.
- */
+** Return 1 if the rune is a printable character, and 0 otherwise.
+*/
 int
 utf8_isprint(long rune)
 {
@@ -162,41 +188,14 @@ utf8_isprint(long rune)
 }
 
 /*
- * Return a index of the first byte of a character of `s' that would be rendered
- * at the `col'-th column in a terminal, or NULL if the whole string fit.  In
- * order to format tabs properly, the string must start with an offset of `off'
- * columns.
- */
-int
-utf8_col(char *str, int col, int off)
-{
-	long rune;
-	char *pos, *s;
-
-	for (s = str; off <= col;) {
-		pos = s;
-		if (*s == '\0')
-			break;
-
-		s += utf8_torune(&rune, s);
-		if (rune == '\t')
-			off += 8 - (off % 8);
-		else
-			off += utf8_wcwidth(rune);
-	}
-
-	return pos - str;
-}
-
-/*
- * Markus Kuhn -- 2007-05-26 (Unicode 5.0)
- *
- * Permission to use, copy, modify, and distribute this software
- * for any purpose and without fee is hereby granted. The author
- * disclaims all warranties with regard to this software.
- *
- * Latest version: http://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c
- */
+** Markus Kuhn -- 2007-05-26 (Unicode 5.0)
+**
+** Permission to use, copy, modify, and distribute this software
+** for any purpose and without fee is hereby granted. The author
+** disclaims all warranties with regard to this software.
+**
+** Latest version: http://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c
+*/
 
 struct interval {
 	int first;
@@ -204,10 +203,10 @@ struct interval {
 };
 
 /*
- * auxiliary function for binary search in interval table
- */
+** Auxiliary function for binary search in interval table.
+*/
 static int
-bisearch(long ucs, const struct interval *table, int max)
+bisearch(long ucs, struct interval const *table, int max)
 {
 	int min = 0;
 	int mid;
@@ -228,42 +227,42 @@ bisearch(long ucs, const struct interval *table, int max)
 }
 
 /* The following two functions define the column width of an ISO 10646
- * character as follows:
- *
- *    - The null character (U+0000) has a column width of 0.
- *
- *    - Other C0/C1 control characters and DEL will lead to a return
- *      value of -1.
- *
- *    - Non-spacing and enclosing combining characters (general
- *      category code Mn or Me in the Unicode database) have a
- *      column width of 0.
- *
- *    - SOFT HYPHEN (U+00AD) has a column width of 1.
- *
- *    - Other format characters (general category code Cf in the Unicode
- *      database) and ZERO WIDTH SPACE (U+200B) have a column width of 0.
- *
- *    - Hangul Jamo medial vowels and final consonants (U+1160-U+11FF)
- *      have a column width of 0.
- *
- *    - Spacing characters in the East Asian Wide (W) or East Asian
- *      Full-width (F) category as defined in Unicode Technical
- *      Report #11 have a column width of 2.
- *
- *    - All remaining characters (including all printable
- *      ISO 8859-1 and WGL4 characters, Unicode control characters,
- *      etc.) have a column width of 1.
- *
- * This implementation was assuming that wchar_t characters are encoded
- * in ISO 10646, but wchar_t have been replaced by long.
- */
+** character as follows:
+**
+**    - The null character (U+0000) has a column width of 0.
+**
+**    - Other C0/C1 control characters and DEL will lead to a return
+**      value of -1.
+**
+**    - Non-spacing and enclosing combining characters (general
+**      category code Mn or Me in the Unicode database) have a
+**      column width of 0.
+**
+**    - SOFT HYPHEN (U+00AD) has a column width of 1.
+**
+**    - Other format characters (general category code Cf in the Unicode
+**      database) and ZERO WIDTH SPACE (U+200B) have a column width of 0.
+**
+**    - Hangul Jamo medial vowels and final consonants (U+1160-U+11FF)
+**      have a column width of 0.
+**
+**    - Spacing characters in the East Asian Wide (W) or East Asian
+**      Full-width (F) category as defined in Unicode Technical
+**      Report #11 have a column width of 2.
+**
+**    - All remaining characters (including all printable
+**      ISO 8859-1 and WGL4 characters, Unicode control characters,
+**      etc.) have a column width of 1.
+**
+** This implementation was assuming that long characters are encoded
+** in ISO 10646.
+*/
 int
 utf8_wcwidth(long ucs)
 {
 	/* sorted list of non-overlapping intervals of non-spacing characters */
 	/* generated by "uniset +cat=Me +cat=Mn +cat=Cf -00AD +1160-11FF +200B c" */
-	static const struct interval combining[] = {
+	static struct interval const combining[] = {
 		{ 0x0300, 0x036F }, { 0x0483, 0x0486 }, { 0x0488, 0x0489 },
 		{ 0x0591, 0x05BD }, { 0x05BF, 0x05BF }, { 0x05C1, 0x05C2 },
 		{ 0x05C4, 0x05C5 }, { 0x05C7, 0x05C7 }, { 0x0600, 0x0603 },
@@ -340,4 +339,86 @@ utf8_wcwidth(long ucs)
 	    (ucs >= 0xffe0 && ucs <= 0xffe6) ||
 	    (ucs >= 0x20000 && ucs <= 0x2fffd) ||
 	    (ucs >= 0x30000 && ucs <= 0x3fffd)));
+}
+
+/*
+** Return the width of <rune> with tabs as displayed from position <off>.
+*/
+int
+utf8_runewidth(long rune, size_t off)
+{
+	return (rune == '\t') ?  (int)(8 - (off % 8)) : utf8_wcwidth(rune);
+}
+
+/*
+** Return a index of the first byte of a character of <s> that would be rendered
+** at the <col>-th column in a terminal, or NULL if the whole string fit.  In
+** order to format tabs properly, the string must start with an offset of <off>
+** columns.
+*/
+int
+utf8_col(char const *str, size_t col, size_t off)
+{
+	long rune;
+	char const *pos, *s;
+
+	for (s = str; off <= col;) {
+		pos = s;
+		if (*s == '\0')
+			break;
+
+		rune = utf8_torune(&s);
+		off += utf8_runewidth(rune, off);
+	}
+
+	return pos - str;
+}
+
+/*
+** Print <rune> to <fp> if it is less wide than <maxwidth> and return
+** the number of columns of the rune printed or a negative value if
+** nothing was printed: -1 if the rune is invalid, and -2 if no width
+** is left.  If the rune is tab, the width is calculated usin <off>
+** as column offset.
+*/
+int
+utf8_putrune(long rune, int maxwidth, int off, FILE *fp)
+{
+	int width;
+	char str[8];
+
+	if ((width = utf8_runewidth(rune, off)) > maxwidth)
+		return -2;
+	if (utf8_tostr(str, rune) == 0)
+		return -1;
+	fputs(str, fp);
+
+	return width;
+}
+
+/*
+** Return a pointer to the next rune in <str> or next byte if the rune
+** is invalid.
+*/
+char const *
+utf8_nextrune(char const *str)
+{
+	int len;
+
+	len = utf8_utflen(str);
+	return (len == 0) ? str + 1 : str + len;
+}
+
+/*
+** Return a pointer to the prev rune in <str> or prev byte if the rune
+** is invalid.
+*/
+char const *
+utf8_prevrune(char const *str)
+{
+	char const *s;
+
+	for (s = str; (*s & 0x80) != 0; s--)
+		;
+	return (utf8_utflen(s) != 0) ? s : str - 1;
 }

@@ -1,13 +1,13 @@
 #include <ctype.h>
 #include <stddef.h>
 
-#include "str.h"
+#include "util.h"
 
 char *
 strcasesstr(const char *str1, const char *str2)
 {
-	const char	*s1;
-	const char	*s2;
+	const char *s1;
+	const char *s2;
 
 	for (;;) {
 		s1 = str1;
