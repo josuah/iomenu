@@ -357,7 +357,7 @@ set_terminal(void)
 		perror("tcgetattr");
 		exit(EXIT_FAILURE);
 	}
-	new.c_lflag &= ~(ICANON | ECHO | IEXTEN | IGNBRK);
+	new.c_lflag &= ~(ICANON | ECHO | IEXTEN | IGNBRK | ISIG);
 	tcsetattr(ttyfd, TCSANOW, &new);
 }
 
