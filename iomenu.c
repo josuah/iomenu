@@ -21,7 +21,6 @@
 
 static struct termios	termios;
 struct winsize		ws;
-static int		ttyfd;
 static int		linec = 0, matchc = 0, cur = 0;
 static char		**linev = NULL, **matchv = NULL;
 static char		input[LINE_MAX];
@@ -29,8 +28,8 @@ static int		hsflag = 0;
 char			*argv0;
 
 /*
-** Keep the line if it match every token (in no particular order, and allowed to
-** be overlapping).
+** Keep the line if it match every token (in no particular order,
+** and allowed to be overlapping).
 */
 static int
 match_line(char *line, char **tokv)
@@ -44,15 +43,32 @@ match_line(char *line, char **tokv)
 }
 
 /*
-** Free the structures, reset the terminal state and exit with an error message.
+** Free the structures, reset the terminal state and exit with an
+** error message.
 */
 static void
 die(const char *s)
 {
-	tcsetattr(ttyfd, TCSANOW, &termios);
-	close(ttyfd);
+	if (tcsetattr(STDERR_FILENO, TCSANOW, &termios) == -1)
+		perror("tcsetattr while dying");
+	close(STDERR_FILENO);
 	perror(s);
 	exit(EXIT_FAILURE);
+}
+
+/*
+** Read one key from stdin and die if it failed to prevent to read
+** in an endless loop.  This caused the load average to go over 10
+** at work.  :S
+*/
+int
+getkey(void)
+{
+	int c;
+
+	if ((c = fgetc(stdin)) == EOF)
+		die("getting a key");
+	return c;
 }
 
 /*
@@ -266,14 +282,14 @@ top:
 		move(+1);
 		break;
 	case CSI('5'):	/* page up */
-		if (fgetc(stdin) != '~')
+		if (getkey() != '~')
 			break;
 		/* FALLTHROUGH */
 	case ALT('v'):
 		move_page(-1);
 		break;
 	case CSI('6'):	/* page down */
-		if (fgetc(stdin) != '~')
+		if (getkey() != '~')
 			break;
 		/* FALLTHROUGH */
 	case CTL('V'):
@@ -291,10 +307,10 @@ top:
 		print_selection();
 		return 0;
 	case ALT('['):
-		k = CSI(fgetc(stdin));
+		k = CSI(getkey());
 		goto top;
 	case ESC:
-		k = ALT(fgetc(stdin));
+		k = ALT(getkey());
 		goto top;
 	default:
 		add_char((char) k);
@@ -353,12 +369,12 @@ set_terminal(void)
 	struct termios	new;
 
 	fputs("\x1b[s\x1b[?1049h\x1b[H", stderr);
-	if (tcgetattr(ttyfd, &termios) < 0 || tcgetattr(ttyfd, &new) < 0) {
-		perror("tcgetattr");
-		exit(EXIT_FAILURE);
-	}
+	if (tcgetattr(STDERR_FILENO, &termios) == -1 ||
+	    tcgetattr(STDERR_FILENO, &new) == -1)
+		die("setting terminal");
 	new.c_lflag &= ~(ICANON | ECHO | IEXTEN | IGNBRK | ISIG);
-	tcsetattr(ttyfd, TCSANOW, &new);
+	if (tcsetattr(STDERR_FILENO, TCSANOW, &new) == -1)
+		die("tcsetattr");
 }
 
 /*
@@ -368,7 +384,8 @@ static void
 reset_terminal(void)
 {
 	fputs("\x1b[2J\x1b[u\033[?1049l", stderr);
-	tcsetattr(ttyfd, TCSANOW, &termios);
+	if (tcsetattr(STDERR_FILENO, TCSANOW, &termios))
+		die("resetting terminal");
 }
 
 static void
@@ -378,7 +395,7 @@ sighandle(int sig)
 
 	switch (sig) {
 	case SIGWINCH:
-		if (ioctl(ttyfd, TIOCGWINSZ, &ws) < 0)
+		if (ioctl(STDERR_FILENO, TIOCGWINSZ, &ws) == -1)
 			die("ioctl");
 		print_screen();
 		break;
@@ -403,11 +420,7 @@ init(void)
 	filter(linec, linev);
 
 	if (freopen("/dev/tty", "r", stdin) == NULL)
-		die("freopen /dev/tty");
-	if (freopen("/dev/tty", "w", stderr) == NULL)
-		die("freopen /dev/tty");
-	if ((ttyfd = open("/dev/tty", O_RDWR)) < 0)
-		die("open /dev/tty");
+		die("reopening /dev/tty as stdin");
 
 	set_terminal();
 	sighandle(SIGWINCH);
@@ -436,12 +449,11 @@ main(int argc, char *argv[])
 	pledge("stdio tty", NULL);
 #endif
 
-	while ((exit_code = key(fgetc(stdin))) > 0)
+	while ((exit_code = key(getkey())) > 0)
 		print_screen();
 
 	print_screen();
 	reset_terminal();
-	close(ttyfd);
 
 	return exit_code;
 }
