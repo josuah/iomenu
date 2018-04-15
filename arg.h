@@ -3,7 +3,7 @@
 
 extern char *argv0;
 
-#define ARGBEGIN(argc, argv)						\
+#define ARGBEGIN							\
 	for (argv0 = *argv, argv++, argc--;				\
 	    argv[0] != NULL && argv[0][0] == '-' && argv[0][1] != '\0';	\
 	    argc--, argv++) {						\

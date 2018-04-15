@@ -436,7 +436,7 @@ main(int argc, char *argv[])
 {
 	int		exit_code;
 
-	ARGBEGIN(argc, argv) {
+	ARGBEGIN {
 	case '#':
 		hsflag = 1;
 		break;
