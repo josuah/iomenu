@@ -124,15 +124,15 @@ read_stdin(void)
 }
 
 static void
-move(int direction)
+move(int sign)
 {
 	extern char	**matchv;
 	extern int	matchc;
 
 	int	i;
 
-	for (i = cur + direction; 0 <= i && i < matchc; i += direction) {
-		if (!hsflag || matchv[i][0] != '#') {
+	for (i = cur + sign; 0 <= i && i < matchc; i += sign) {
+		if (hsflag == 0 || matchv[i][0] != '#') {
 			cur = i;
 			break;
 		}
@@ -180,7 +180,7 @@ static void
 move_page(signed int sign)
 {
 	extern	struct	winsize ws;
-	extern	int	matchc;
+	extern	int	matchc, cur;
 
 	int	i, rows;
 
@@ -189,6 +189,26 @@ move_page(signed int sign)
 	if (!(0 <= i && i < matchc))
 		return;
 	cur = i - 1;
+	move(+1);
+}
+
+static void
+move_header(signed int sign)
+{
+	extern char	**matchv;
+	extern int	matchc, cur;
+
+	move(sign);
+	if (hsflag == 0)
+		return;
+	for (cur += sign; 0 <= cur; cur += sign) {
+		if (cur >= matchc) {
+			cur--;
+			break;
+		}
+		if (matchv[cur][0] == '#')
+			break;
+	}
 	move(+1);
 }
 
@@ -277,9 +297,15 @@ top:
 	case CTL('P'):
 		move(-1);
 		break;
+	case ALT('p'):
+		move_header(-1);
+		break;
 	case CSI('B'):	/* down */
 	case CTL('N'):
 		move(+1);
+		break;
+	case ALT('n'):
+		move_header(+1);
 		break;
 	case CSI('5'):	/* page up */
 		if (getkey() != '~')
