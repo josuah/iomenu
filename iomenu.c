@@ -78,9 +78,6 @@ getkey(void)
 static void
 split_lines(char *buf)
 {
-	extern char	**linev, **matchv;
-	extern int	linec;
-
 	char	*b, **lv, **mv;
 
 	linec = 1;
@@ -104,8 +101,8 @@ split_lines(char *buf)
 static void
 read_stdin(void)
 {
-	size_t	size, len, off;
-	char	*buf;
+	size_t size, len, off;
+	char *buf;
 
 	size = BUFSIZ;
 	off = 0;
@@ -126,10 +123,7 @@ read_stdin(void)
 static void
 move(int sign)
 {
-	extern char	**matchv;
-	extern int	matchc;
-
-	int	i;
+	int i;
 
 	for (i = cur + sign; 0 <= i && i < matchc; i += sign) {
 		if (hsflag == 0 || matchv[i][0] != '#') {
@@ -157,12 +151,9 @@ tokenize(char **tokv, char *str)
 static void
 filter(int searchc, char **searchv)
 {
-	extern char	**matchv;
-	extern int	matchc, cur;
-
-	int	n;
-	char	*tokv[sizeof(input) * sizeof(char *) + sizeof(NULL)];
-	char	buf[sizeof(input)];
+	int n;
+	char *tokv[sizeof(input) * sizeof(char *) + sizeof(NULL)];
+	char buf[sizeof(input)];
 
 	strncpy(buf, input, sizeof(input));
 	buf[sizeof(input) - 1] = '\0';
@@ -179,10 +170,7 @@ filter(int searchc, char **searchv)
 static void
 move_page(signed int sign)
 {
-	extern	struct	winsize ws;
-	extern	int	matchc, cur;
-
-	int	i, rows;
+	int i, rows;
 
 	rows = ws.ws_row - 1;
 	i = cur - cur % rows + rows * sign;
@@ -195,9 +183,6 @@ move_page(signed int sign)
 static void
 move_header(signed int sign)
 {
-	extern char	**matchv;
-	extern int	matchc, cur;
-
 	move(sign);
 	if (hsflag == 0)
 		return;
@@ -215,9 +200,7 @@ move_header(signed int sign)
 static void
 remove_word()
 {
-	extern	char	input[LINE_MAX];
-
-	int	len, i;
+	int len, i;
 
 	len = strlen(input) - 1;
 	for (i = len; i >= 0 && isspace(input[i]); i--)
@@ -231,9 +214,7 @@ remove_word()
 static void
 add_char(char c)
 {
-	extern	char	input[LINE_MAX];
-
-	int	len;
+	int len;
 
 	len = strlen(input);
 	if (isprint(c)) {
@@ -246,10 +227,7 @@ add_char(char c)
 static void
 print_selection(void)
 {
-	extern	char	**matchv, input[LINE_MAX];
-	extern	int	  matchc;
-
-	char	**match;
+	char **match;
 
 	if (hsflag) {
 		match = matchv + cur;
@@ -268,17 +246,16 @@ print_selection(void)
 }
 
 /*
-** Big case table, that calls itself back for with ALT (aka Esc), CSI
-** (aka Esc + [).  These last two have values above the range of ASCII.
-*/
+ * Big case table, that calls itself back for with ALT (aka Esc), CSI
+ * (aka Esc + [).  These last two have values above the range of ASCII.
+ */
 int
-key(int k)
+key(void)
 {
-	extern	char	**matchv, input[LINE_MAX];
-	extern	int	linec;
+	int k;
 
 top:
-	switch (k) {
+	switch ((k = getkey())) {
 	case CTL('C'):
 		return -1;
 	case CTL('U'):
@@ -348,8 +325,6 @@ top:
 static void
 print_line(char *line, int highlight)
 {
-	extern	struct	winsize ws;
-
 	if (hsflag && line[0] == '#')
 		fprintf(stderr, "\n\x1b[1m\r%.*s\x1b[m",
 		    utf8_col(line + 1, ws.ws_col, 0), line + 1);
@@ -364,15 +339,11 @@ print_line(char *line, int highlight)
 static void
 print_screen(void)
 {
-	extern struct winsize	ws;
-	extern char		**matchv, input[LINE_MAX];
-	extern int		matchc;
-
-	char	**m;
-	int	  p, i, c, cols, rows;
+	char **m;
+	int p, i, c, cols, rows;
 
 	cols = ws.ws_col;
-	rows = ws.ws_row - 1;	/* keep one line for user input */
+	rows = ws.ws_row - 1;	/* -1 to keep one line for user input */
 	p = c = 0;
 	i = cur - cur % rows;
 	m = matchv + i;
@@ -387,12 +358,12 @@ print_screen(void)
 }
 
 /*
-** Set terminal in raw mode.
-*/
+ * Set terminal to raw mode.
+ */
 static void
-set_terminal(void)
+term_set(void)
 {
-	struct termios	new;
+	struct termios new;
 
 	fputs("\x1b[s\x1b[?1049h\x1b[H", stderr);
 	if (tcgetattr(STDERR_FILENO, &termios) == -1 ||
@@ -404,10 +375,10 @@ set_terminal(void)
 }
 
 /*
-** Take terminal out of raw mode.
-*/
+ * Take terminal out of raw mode.
+ */
 static void
-reset_terminal(void)
+term_reset(void)
 {
 	fputs("\x1b[2J\x1b[u\033[?1049l", stderr);
 	if (tcsetattr(STDERR_FILENO, TCSANOW, &termios))
@@ -415,18 +386,12 @@ reset_terminal(void)
 }
 
 static void
-sighandle(int sig)
+sigwinch(int sig)
 {
-	extern struct winsize	ws;
-
-	switch (sig) {
-	case SIGWINCH:
-		if (ioctl(STDERR_FILENO, TIOCGWINSZ, &ws) == -1)
-			die("ioctl");
-		print_screen();
-		break;
-	}
-	signal(sig, sighandle);
+	if (ioctl(STDERR_FILENO, TIOCGWINSZ, &ws) == -1)
+		die("ioctl");
+	print_screen();
+	signal(sig, sigwinch);
 }
 
 static void
@@ -434,22 +399,6 @@ usage(void)
 {
 	fputs("usage: iomenu [-#]\n", stderr);
 	exit(EXIT_FAILURE);
-}
-
-void
-init(void)
-{
-	extern char	input[LINE_MAX];
-
-	input[0] = '\0';
-	read_stdin();
-	filter(linec, linev);
-
-	if (freopen("/dev/tty", "r", stdin) == NULL)
-		die("reopening /dev/tty as stdin");
-
-	set_terminal();
-	sighandle(SIGWINCH);
 }
 
 /*
@@ -460,8 +409,6 @@ init(void)
 int
 main(int argc, char *argv[])
 {
-	int		exit_code;
-
 	ARGBEGIN {
 	case '#':
 		hsflag = 1;
@@ -469,17 +416,22 @@ main(int argc, char *argv[])
 	default:
 		usage();
 	} ARGEND
-	init();
+
+	input[0] = '\0';
+	read_stdin();
+	filter(linec, linev);
+	if (freopen("/dev/tty", "r", stdin) == NULL)
+		die("reopening /dev/tty as stdin");
+	term_set();
+	sigwinch(SIGWINCH);
 
 #ifdef __OpenBSD__
 	pledge("stdio tty", NULL);
 #endif
 
-	while ((exit_code = key(getkey())) > 0)
+	while (key() > 0)
 		print_screen();
+	term_reset();
 
-	print_screen();
-	reset_terminal();
-
-	return exit_code;
+	return 0;
 }
