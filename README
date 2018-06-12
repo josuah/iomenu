@@ -1,86 +1,20 @@
-IOMENU(1)                   General Commands Manual                  IOMENU(1)
+iomenu
+================================================================================
 
-NAME
-     iomenu – interactive selection menu
+*iomenu* is an interactive menu inspired from dmenu [1]: it reads lines from
+stdin display them to the screen [1], and filter them as the user type.  When
+`Enter` is pressed, the selected line is printed to stdout.
 
-SYNOPSIS
-     iomenu [-#] [-l lines] [-p prompt]
+This permits to build interactive menu with shell pipes.  As an example, a poor
+man's music player could be done this way:
 
-DESCRIPTION
-     iomenu is an interactive filtering and selection tool for the terminal.
+	$ find ~/music -name '*.flac' | iomenu | xargs mplayer
 
-     It reads lines from standard input, and prompt for a selection.  The
-     selected line is printed to standard output.
+It will print all the FLAC files in `~/music` to iomenu which shows a fulscreen
+menu, and the selected file will be printed to xargs mplayer.
 
-     -l lines          If lines is 0 or if -l is not set, the items are
-                       displayed in an horizontal list.  Otherwise, in a
-                       vertical list of at most lines lines.
+iomenu does not use ncurses but ansi escape sequences [2] instead so it does
+not have dependencies beyond a C compiler.
 
-     -p prompt         Set the prompt to display at the beginning of the input
-                       to prompt.
-
-     -#                If a line starts with #, iomenu will interprete it as a
-                       header, which always matches, and can not be printed.
-
-KEY BINDINGS
-     An active selection is highlighted, and can be controlled with
-     keybindings.  As printable keys are entered, the lines are filtered to
-     match each word from the input.
-
-     Up, Down, Ctrl + p, Ctrl + n
-                      Move selection to the previous/next item.
-
-     PageUp, PageDown, Alt + v, Ctrl + v
-                      Move one page up or down.
-
-     Ctrl + m, Ctrl + j, Enter
-                      Print the selection to the standard output, and exit 0.
-
-     Ctrl + h, Bakcspace
-                      Remove last character from current input.
-
-     Ctrl + w         Remove last word from current input.
-
-     Ctrl + u         Remove the whole input string.
-
-     Ctrl + i, Tab    Fill the input with current selection.
-
-EXIT STATUS
-     The iomenu utility exits 0 on success, and >0 if an error occurs.
-
-EXAMPLES
-     Open a bookmark from a list in a text file:
-
-       iomenu < bookmarks-urls.txt | xargs firefox
-
-     Go to a subdirectory:
-
-       cd "$(find . -type d | iomenu)"
-
-     Edit a file located in HOME:
-
-       EDITOR "$(find "$HOME" -type f | iomenu -l 255)"
-
-     Play an audio file:
-
-       mplayer "$(find ~/Music | iomenu)"
-
-     Select a background job to attach to:
-
-       fg "%$(jobs | iomenu | cut -c 2)"
-
-     Filter "ps" output and print a process ID
-
-       { printf '# '; ps ax; } | iomenu -l 255 -s | sed -r 's/ *([0-9]*).*/1/'
-
-SEE ALSO
-     dmenu(1), slmenu(1), vis-menu(1)
-
-BUGS
-     iomenu currently only support ASCII characters.
-
-AUTORS
-     iomenu was written from scratch by Josuah Demangeon <mail@josuah.net>
-     with the help of dmenu(1) and vis-menu(1) as models.
-
-Void Linux                      August 21, 2017                     Void Linux
+[1]: https://tools.suckless.org/dmenu
+[2]: https://en.wikipedia.org/wiki/ANSI_escape_code
