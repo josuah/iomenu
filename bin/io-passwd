@@ -1,0 +1,9 @@
+#!/bin/sh -e
+# display /etc/passwd and /etc/group in iomenu
+
+{
+	printf '#/etc/passwd\n'
+	column -ts : < /etc/passwd
+	printf '#/etc/group\n'
+	column -ts : < /etc/group
+} | iomenu -'#'

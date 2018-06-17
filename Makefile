@@ -29,7 +29,7 @@ clean:
 
 .PHONY: install
 install: iomenu
-	mkdir -p  ${PREFIX}/share/man/man1
-	cp *.1    ${PREFIX}/share/man/man1
-	mkdir -p  ${PREFIX}/bin
-	cp iomenu ${PREFIX}/bin
+	mkdir -p	${PREFIX}/share/man/man1
+	cp *.1		${PREFIX}/share/man/man1
+	mkdir -p	${PREFIX}/bin
+	cp iomenu bin/*	${PREFIX}/bin

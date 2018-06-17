@@ -1,0 +1,9 @@
+#!/bin/sh -e
+# process list picker with iomenu
+
+ps='ps -o pid,user,stat,args'
+
+{
+	printf '#'
+	ps "$@"
+} | iomenu -'#' | sed -r 's/[^	]*	 *([0-9]*).*/\1/'

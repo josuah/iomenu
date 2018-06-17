@@ -1,0 +1,6 @@
+#!/bin/sh -e
+# find a file from current directory with iomenu
+
+test $# = 0 && set -- .
+
+find "$@" '(' -name .git -o -name CVS ')' -prune -o -print | sort | iomenu

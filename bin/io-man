@@ -1,0 +1,7 @@
+#!/bin/sh -e
+# man page picker with iomenu
+
+man -k ' ' | sed -r '
+	s/ - /                          - /
+	s/(.{25}[^ ]* ) * - /\1- /
+' | iomenu | sed -r 's,[(,].*,,' | xargs man

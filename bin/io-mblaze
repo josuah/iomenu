@@ -1,0 +1,20 @@
+#!/bin/sh -e
+# mail client using iomenu, mblaze, to be used with mfilter
+
+cd /home/mail
+
+if test "$1" = -a
+then	IFS='	' read dir mail <<EOF
+$(iomenu -'#' <index)
+EOF
+	mseq -S <$dir/seq >/dev/null
+	exec mless "$(echo $mail | sed -r 's, *([0-9]+).*,\1,')
+fi
+
+wc -l */seq | sed 's, 0, .,; s,/seq$,,' |
+	iomenu | sed -r 's,^ +[^ ]+ +,,' |
+	xargs printf %s/%s "$(pwd)" | mlist | msort -r -d | mseq -S
+
+mscan -f '%6n %u %D  %20f %t%2i%120S' |
+	iomenu | sed -r 's,^ *([0-9]*) .*,\1,' |
+	xargs mless
