@@ -1,7 +1,7 @@
 #!/bin/sh -e
 # mail client using iomenu, mblaze, to be used with mfilter
 
-cd /home/mail
+cd "$HOME/mail"
 
 if test "$1" = -a
 then	IFS='	' read dir mail <<EOF
