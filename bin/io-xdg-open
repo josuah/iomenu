@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/sh -e
 # pick a file to open with xdg-open with iomenu with caching
 #
 # The cache is updated when a directory is selected.
