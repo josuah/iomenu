@@ -26,5 +26,5 @@ rm "$HOME/.cache/$$"
 case $s in
 ('')	exit 1 ;;
 (*/)	exec "$0" "$(cd "$s" && pwd)" ;;
-(*)	exec xdg-open ;;
+(*)	exec xdg-open "$s" ;;
 esac
