@@ -1,14 +1,30 @@
-#!/bin/sh -e
+#!/bin/sh -ex
 # pick a file to open with xdg-open with iomenu with caching
+#
+# The cache is updated when a directory is selected.
 
 LC_COLLATE=C
 
+if	test -f "$HOME/.cache/find" && test $# = 0
+then	exec "$0" "$HOME"
+elif	test $# = 0
+then	exec xdg-open "$(iomenu <$HOME/.cache/find)"
+fi
+
 mkdir -p "$HOME/.cache"
-
-test "$1" = -c || ! test -f "$HOME/.cache/find" &&
-	find "$HOME" '(' -name .git -o -name CVS ')' -prune -o \
+{
+	find "$1" '(' -name .git -o -name CVS ')' -prune -o \
 		-type d -exec printf '%s/\n' '{}' + -o \
-		-type f -exec printf '%s\n' '{}' + |
-		sort -o $HOME/.cache/find
+		-type f -exec printf '%s\n' '{}' + | tee "$HOME/.cache/$$" 
+	grep -vF "$1" $HOME/.cache/find
+} | sort -o "$HOME/.cache/find"
 
-exec xdg-open "$(iomenu <$HOME/.cache/find)"
+s=$(iomenu <$HOME/.cache/$$)
+
+rm "$HOME/.cache/$$"
+
+case $s in
+('')	exit 1 ;;
+(*/)	exec "$0" "$(cd "$s" && pwd)" ;;
+(*)	exec xdg-open ;;
+esac
