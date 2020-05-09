@@ -1,4 +1,4 @@
 #!/bin/sh -e
 # searchable netstat results with iomenu
 
-netstat "$@" | sed 's/^[AP]/#&/' | iomenu -'#'
+netstat -n "$@" | sed 's/^[AP]/#&/' | iomenu -'#'

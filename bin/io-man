@@ -4,4 +4,4 @@
 man -k ' ' | sed -r '
 	s/ - /                          - /
 	s/(.{25}[^ ]* ) * - /\1- /
-' | iomenu | sed -r 's,[(,].*,,' | xargs man
+' | iomenu | sed -r 's,[(,].*,,' | tr '\n' '\0' | xargs -0r man

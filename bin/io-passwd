@@ -3,7 +3,7 @@
 
 {
 	printf '#/etc/passwd\n'
-	column -ts : < /etc/passwd
+	column-t -F : < /etc/passwd
 	printf '#/etc/group\n'
-	column -ts : < /etc/group
+	column-t -F : < /etc/group
 } | iomenu -'#'

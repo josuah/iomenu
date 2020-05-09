@@ -1,0 +1,21 @@
+#!/usr/bin/awk -f
+# format text in aligned two-space separated columns: portable column -t
+
+{
+	for (f = 1; f <= NF; f++) {
+		l = length($f)
+		if (l > len[f])
+			len[f] = l
+		field[NR"|"f] = $f
+	}
+	if (--f > count)
+		count = f
+}
+
+END {
+	for (row = 1; row <= NR; row++) {
+		for (f = 1; f < count; f++)
+			printf("%-"len[f]"s  ", field[row"|"f])
+		printf("%s\n", field[row"|"f])
+	}
+}

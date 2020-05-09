@@ -5,6 +5,8 @@
 
 LC_COLLATE=C
 
+touch "$HOME/.cache/find"
+
 if	test -f "$HOME/.cache/find" && test $# = 0
 then	exec "$0" "$HOME"
 elif	test $# = 0

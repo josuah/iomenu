@@ -2,8 +2,8 @@
 # display mounts and fstab in iomenu
 
 {
-	printf '#/etc/fstab\n'
-	column -ts ' ' </etc/fstab
-	printf '#mount\n'
-	mount | column -ts ' '
-} | iomenu -#
+	echo "#/etc/fstab"
+	column-t -F '[ \t]' /etc/fstab
+	echo "#mount"
+	mount | column-t -F '[ \t]'
+} | exec iomenu -#
