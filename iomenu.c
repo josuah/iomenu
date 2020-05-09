@@ -253,9 +253,9 @@ int
 key(void)
 {
 	int k;
-
+	k = getkey();
 top:
-	switch ((k = getkey())) {
+	switch (k) {
 	case CTL('C'):
 		return -1;
 	case CTL('U'):
