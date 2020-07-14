@@ -1,10 +1,10 @@
 #include <ctype.h>
 #include <stddef.h>
 
-#include "util.h"
+#include "compat.h"
 
 char *
-strcasesstr(const char *str1, const char *str2)
+strcasestr(const char *str1, const char *str2)
 {
 	const char *s1;
 	const char *s2;

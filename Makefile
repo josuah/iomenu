@@ -1,32 +1,45 @@
-include config.mk
+NAME = iomenu
+VERSION = 0.1
 
-SRC = iomenu.c strcasestr.c strsep.c utf8.c
+SRC = src/utf8.c src/str.c src/log.c src/mem.c src/compat/strcasestr.c \
+  src/compat/strsep.c src/compat/wcwidth.c
+
+HDR = src/mem.h src/compat.h src/util.h src/str.h src/log.h src/utf8.h
+
+BIN = iomenu
+
 OBJ = ${SRC:.c=.o}
 
-all: iomenu
+LIB =
+
+W = -Wall -Wextra -std=c99 --pedantic
+I = -I./src
+L =
+D = -D_POSIX_C_SOURCE=200811L -DVERSION='"${VERSION}"'
+CFLAGS = $I $D $W -g
+LDFLAGS = $L -static
+PREFIX = /usr/local
+MANPREFIX = ${PREFIX}/man
+
+all: ${BIN}
 
 .c.o:
-	${CC} -c -o $@ ${CFLAGS} $<
+	${CC} -c ${CFLAGS} -o $@ $<
 
-iomenu: ${OBJ}
-	${CC} -o $@ ${LFLAGS} ${OBJ}
-
-iomenu.o: iomenu.c util.h
-strcasestr.o: strcasestr.c util.h
-strsep.o: strsep.c util.h
-test.o: test.c util.h
-utf8.o: utf8.c utf8.h
-
-.PHONY: test
-test: test.c
-	${CC} -o $@ ${LFLAGS} test.c utf8.c
-	./$@
+${OBJ}: ${HDR}
+${BIN}: ${OBJ} ${BIN:=.o}
+	${CC} ${LDFLAGS} -o $@ $@.o ${OBJ} ${LIB}
 
 clean:
-	rm -f *.o *.core iomenu test
+	rm -rf *.o */*.o ${BIN} ${NAME}-${VERSION} *.gz
 
-install: iomenu
-	mkdir -p	${MANPREFIX}/man1
-	cp *.1		${MANPREFIX}/man1
-	mkdir -p	${PREFIX}/bin
-	cp iomenu bin/*	${PREFIX}/bin
+install:
+	mkdir -p ${DESTDIR}${PREFIX}/bin
+	cp -rf ${BIN} ${DESTDIR}${PREFIX}/bin
+	mkdir -p ${DESTDIR}${MANPREFIX}/man1
+	cp -rf doc/*.1 ${DESTDIR}${MANPREFIX}/man1
+
+dist: clean
+	mkdir -p ${NAME}-${VERSION}
+	cp -r README Makefile doc ${SRC} ${NAME}-${VERSION}
+	tar -cf - ${NAME}-${VERSION} | gzip -c >${NAME}-${VERSION}.tar.gz
