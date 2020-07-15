@@ -47,12 +47,13 @@ struct mem_block {
 
 /** src/mem.c **/
 void * mem_alloc(struct mem_pool *pool, size_t len);
-int mem_resize(void **pp, size_t len);
-int mem_grow(void **pp, size_t len);
-int mem_shrink(void **pp, size_t len);
-size_t mem_length(void *v);
-int mem_append(void **pp, char const *buf, size_t len);
-void mem_delete(void *v);
+int mem_resize(void **memp, size_t len);
+int mem_grow(void **memp, size_t len);
+int mem_shrink(void **memp, size_t len);
+size_t mem_length(void *mem);
+int mem_append(void **memp, void const *buf, size_t len);
+int mem_read(void **memp, struct mem_pool *pool);
+void mem_delete(void *mem);
 void mem_free(struct mem_pool *pool);
 
 #endif

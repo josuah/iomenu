@@ -1,33 +1,23 @@
 #include "log.h"
 
 #include <assert.h>
-#include <string.h>
-
-/*
- * log.c - log to standard error according to the log level
- *
- * Instead of logging to syslog, delegate logging to a separate
- * tool, such as FreeBSD's daemon(8), POSIX's logger(1).
- */
-
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+#ifndef LOG_DEFAULT
 #define LOG_DEFAULT 3 /* info */
+#endif
 
 char *arg0 = NULL;
-
 static int log_level = -1;
 
 void
-log_print(int level, char const *flag, char const *fmt, ...)
+log_vprintf(int level, char const *flag, char const *fmt, va_list va)
 {
-	va_list va;
 	char *env;
 	int old_errno = errno;
-
-	va_start(va, fmt);
 
 	if (log_level < 0) {
 		env = getenv("LOG");
@@ -50,5 +40,33 @@ log_print(int level, char const *flag, char const *fmt, ...)
 
 	fprintf(stderr, "\n");
 	fflush(stderr);
-	va_end(va);
+}
+
+void
+die(char const *fmt, ...)
+{
+	va_list va;
+	va_start(va, fmt); log_vprintf(1, "error", fmt, va); va_end(va);
+	exit(1);
+}
+
+void
+warn(char const *fmt, ...)
+{
+	va_list va;
+	va_start(va, fmt); log_vprintf(2, "warn", fmt, va); va_end(va);
+}
+
+void
+info(char const *fmt, ...)
+{
+	va_list va;
+	va_start(va, fmt); log_vprintf(3, "info", fmt, va); va_end(va);
+}
+
+void
+debug(char const *fmt, ...)
+{
+	va_list va;
+	va_start(va, fmt); log_vprintf(4, "debug", fmt, va); va_end(va);
 }

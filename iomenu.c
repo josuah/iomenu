@@ -1,5 +1,3 @@
-#include <sys/ioctl.h>
-
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -9,25 +7,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
-#include "utf8.h"
 #include "compat.h"
-#include "util.h"
 #include "log.h"
+#include "mem.h"
+#include "term.h"
+#include "utf8.h"
 
-#ifndef SIGWINCH
-#define SIGWINCH	28
-#endif
+struct {
+	FILE *tty;
+	char input[LINE_MAX];
+	size_t cur;
 
-static struct termios termios;
-struct winsize ws;
-static int linec = 0, matchc = 0, cur = 0;
-static char **linev = NULL, **matchv = NULL;
-static char input[LINE_MAX];
-static char *flag['z'];
-char *argv0;
+	char **lines_buf;
+	size_t lines_len;
+
+	char **match_buf;
+	size_t match_len;
+} ctx;
+
+int opt_comment;
 
 /*
  * Keep the line if it match every token (in no particular order,
@@ -36,7 +38,7 @@ char *argv0;
 static int
 match_line(char *line, char **tokv)
 {
-	if (flag['#'] && line[0] == '#')
+	if (opt_comment && line[0] == '#')
 		return 2;
 	for (; *tokv != NULL; tokv++)
 		if (strcasestr(line, *tokv) == NULL)
@@ -49,277 +51,203 @@ match_line(char *line, char **tokv)
  * error message.
  */
 static void
-iomenu_die(const char *s)
+goodbye(const char *s)
 {
 	int e = errno;
 
-	if (tcsetattr(STDERR_FILENO, TCSANOW, &termios) == -1)
-		warn("tcsetattr while dying");
+	term_raw_off(2);
 	errno = e;
 	die("%s", s);
 }
 
-/*
- * Read one key from stdin and die if it failed to prevent to read
- * in an endless loop.  This caused the load average to go over 10
- * at work.  :S
- */
-int
-getkey(void)
-{
-	int c;
-
-	if ((c = fgetc(stdin)) == EOF)
-		iomenu_die("getting a key");
-	return c;
-}
-
-/*
- * Split a buffer into an array of lines, without allocating memory for every
- * line, but using the input buffer and replacing '\n' by '\0'.
- */
 static void
-split_lines(char *buf)
+do_move(int sign)
 {
-	char	*b, **lv, **mv;
-
-	linec = 1;
-	for (b = buf; (b = strchr(b, '\n')) != NULL && b[1] != '\0'; b++)
-		linec++;
-	if ((lv = linev = calloc(linec + 1, sizeof(char **))) == NULL)
-		iomenu_die("calloc");
-	if ((mv = matchv = calloc(linec + 1, sizeof(char **))) == NULL)
-		iomenu_die("calloc");
-	*mv = *lv = b = buf;
-	while ((b = strchr(b, '\n')) != NULL) {
-		*b = '\0';
-		*++mv = *++lv = ++b;
-	}
-}
-
-/*
- * Read stdin in a single malloc-ed buffer, realloc-ed to twice its size every
- * time the previous buffer is filled.
- */
-static void
-read_stdin(void)
-{
-	size_t size, len, off;
-	char *buf;
-
-	size = BUFSIZ;
-	off = 0;
-	if ((buf = malloc(size)) == NULL)
-		iomenu_die("malloc");
-	while ((len = read(STDIN_FILENO, buf + off, size - off)) > 0) {
-		off += len;
-		if (off == size) {
-			size *= 2;
-			if ((buf = realloc(buf, size + 1)) == NULL)
-				iomenu_die("realloc");
-		}
-	}
-	buf[off] = '\0';
-	split_lines(buf);
-}
-
-static void
-move(int sign)
-{
-	int i;
-
-	for (i = cur + sign; 0 <= i && i < matchc; i += sign) {
-		if (flag['#'] == 0 || matchv[i][0] != '#') {
-			cur = i;
+	/* integer overflow will do what we need */
+	for (size_t i = ctx.cur + sign; i < ctx.match_len; i += sign) {
+		if (opt_comment == 0 || ctx.match_buf[i][0] != '#') {
+			ctx.cur = i;
 			break;
 		}
 	}
-}
-
-static void
-tokenize(char **tokv, char *str)
-{
-	while ((*tokv = strsep(&str, " \t")) != NULL) {
-		if (**tokv != '\0')
-			tokv++;
-	}
-	*tokv = NULL;
 }
 
 /*
  * First split input into token, then match every token independently against
- * every line.  The matching lines fills matchv.  Matches are searched inside
+ * every line.  The matching lines fills matches.  Matches are searched inside
  * of `searchv' of size `searchc'
  */
 static void
-filter(int searchc, char **searchv)
+do_filter(char **search_buf, size_t search_len)
 {
-	int n;
-	char *tokv[sizeof(input) * sizeof(char *) + sizeof(NULL)];
-	char buf[sizeof(input)];
+	char **t, *tokv[(sizeof ctx.input + 1) * sizeof(char *)];
+	char *b, buf[sizeof ctx.input];
 
-	strncpy(buf, input, sizeof(input));
-	buf[sizeof(input) - 1] = '\0';
-	tokenize(tokv, buf);
+	strlcpy(buf, ctx.input, sizeof buf);
 
-	cur = matchc = 0;
-	for (n = 0; n < searchc; n++)
-		if (match_line(searchv[n], tokv))
-			matchv[matchc++] = searchv[n];
-	if (flag['#'] && matchv[cur][0] == '#')
-		move(+1);
+	for (b = buf, t = tokv; (*t = strsep(&b, " \t")) != NULL; t++)
+		continue;
+	*t = NULL;
+
+	ctx.cur = ctx.match_len = 0;
+	for (size_t n = 0; n < search_len; n++)
+		if (match_line(search_buf[n], tokv))
+			ctx.match_buf[ctx.match_len++] = search_buf[n];
+	if (opt_comment && ctx.match_buf[ctx.cur][0] == '#')
+		do_move(+1);
 }
 
 static void
-move_page(signed int sign)
+do_move_page(signed int sign)
 {
-	int i, rows;
+	int rows = term.winsize.ws_row - 1;
+	size_t i = ctx.cur - ctx.cur % rows + rows * sign;
 
-	rows = ws.ws_row - 1;
-	i = cur - cur % rows + rows * sign;
-	if (!(0 <= i && i < matchc))
+	if (i >= ctx.match_len)
 		return;
-	cur = i - 1;
-	move(+1);
+	ctx.cur = i - 1;
+
+	do_move(+1);
 }
 
 static void
-move_header(signed int sign)
+do_move_header(signed int sign)
 {
-	move(sign);
-	if (flag['#'] == 0)
+	do_move(sign);
+
+	if (opt_comment == 0)
 		return;
-	for (cur += sign; 0 <= cur; cur += sign) {
-		if (cur >= matchc) {
-			cur--;
+	for (ctx.cur += sign;; ctx.cur += sign) {
+		char *cur = ctx.match_buf[ctx.cur];
+
+		if (ctx.cur >= ctx.match_len) {
+			ctx.cur--;
 			break;
 		}
-		if (matchv[cur][0] == '#')
+		if (cur[0] == '#')
 			break;
 	}
-	move(+1);
+
+	do_move(+1);
 }
 
 static void
-remove_word()
+do_remove_word(void)
 {
 	int len, i;
 
-	len = strlen(input) - 1;
-	for (i = len; i >= 0 && isspace(input[i]); i--)
-		input[i] = '\0';
-	len = strlen(input) - 1;
-	for (i = len; i >= 0 && !isspace(input[i]); i--)
-		input[i] = '\0';
-	filter(linec, linev);
+	len = strlen(ctx.input) - 1;
+	for (i = len; i >= 0 && isspace(ctx.input[i]); i--)
+		ctx.input[i] = '\0';
+	len = strlen(ctx.input) - 1;
+	for (i = len; i >= 0 && !isspace(ctx.input[i]); i--)
+		ctx.input[i] = '\0';
+	do_filter(ctx.lines_buf, ctx.lines_len);
 }
 
 static void
-add_char(char c)
+do_add_char(char c)
 {
 	int len;
 
-	len = strlen(input);
+	len = strlen(ctx.input);
+	if (len + 1 == sizeof ctx.input)
+		return;
 	if (isprint(c)) {
-		input[len]     = c;
-		input[len + 1] = '\0';
+		ctx.input[len] = c;
+		ctx.input[len + 1] = '\0';
 	}
-	filter(matchc, matchv);
+	do_filter(ctx.match_buf, ctx.match_len);
 }
 
 static void
-print_selection(void)
+do_print_selection(void)
 {
-	char **match;
+	if (opt_comment) {
+		char **match = ctx.match_buf + ctx.cur;
 
-	if (flag['#']) {
-		match = matchv + cur;
-		while (--match >= matchv) {
+		while (--match >= ctx.match_buf) {
 			if ((*match)[0] == '#') {
-				fputs(*match + 1, stdout);
+				fprintf(stdout, "%s", *match + 1);
 				break;
 			}
 		}
-		putchar('\t');
+		fprintf(stdout, "%c", '\t');
 	}
-	if (matchc == 0 || (flag['#'] && matchv[cur][0] == '#'))
-		puts(input);
+	term_raw_off(2);
+	if (ctx.match_len == 0
+	  || (opt_comment && ctx.match_buf[ctx.cur][0] == '#'))
+		fprintf(stdout, "%s\n", ctx.input);
 	else
-		puts(matchv[cur]);
+		fprintf(stdout, "%s\n", ctx.match_buf[ctx.cur]);
+	term_raw_on(2);
 }
 
 /*
- * Big case table, that calls itself back for with ALT (aka Esc), CSI
+ * Big case table, that calls itself back for with TERM_KEY_ALT (aka Esc), TERM_KEY_CSI
  * (aka Esc + [).  These last two have values above the range of ASCII.
  */
-int
-key(void)
+static int
+key_action(void)
 {
-	int k;
-	k = getkey();
-top:
-	switch (k) {
-	case CTL('C'):
+	int key;
+
+	key = term_get_key(stderr);
+	switch (key) {
+	case TERM_KEY_CTRL('Z'):
+		term_raw_off(2);
+		kill(getpid(), SIGSTOP);
+		term_raw_on(2);
+		break;
+	case TERM_KEY_CTRL('C'):
+	case TERM_KEY_CTRL('D'):
 		return -1;
-	case CTL('U'):
-		input[0] = '\0';
-		filter(linec, linev);
+	case TERM_KEY_CTRL('U'):
+		ctx.input[0] = '\0';
+		do_filter(ctx.lines_buf, ctx.lines_len);
 		break;
-	case CTL('W'):
-		remove_word();
+	case TERM_KEY_CTRL('W'):
+		do_remove_word();
 		break;
-	case 127:
-	case CTL('H'): /* backspace */
-		input[strlen(input) - 1] = '\0';
-		filter(linec, linev);
+	case TERM_KEY_DELETE:
+	case TERM_KEY_BACKSPACE:
+		ctx.input[strlen(ctx.input) - 1] = '\0';
+		do_filter(ctx.lines_buf, ctx.lines_len);
 		break;
-	case CSI('A'): /* up */
-	case CTL('P'):
-		move(-1);
+	case TERM_KEY_ARROW_UP:
+	case TERM_KEY_CTRL('P'):
+		do_move(-1);
 		break;
-	case ALT('p'):
-		move_header(-1);
+	case TERM_KEY_ALT('p'):
+		do_move_header(-1);
 		break;
-	case CSI('B'): /* down */
-	case CTL('N'):
-		move(+1);
+	case TERM_KEY_ARROW_DOWN:
+	case TERM_KEY_CTRL('N'):
+		do_move(+1);
 		break;
-	case ALT('n'):
-		move_header(+1);
+	case TERM_KEY_ALT('n'):
+		do_move_header(+1);
 		break;
-	case CSI('5'): /* page up */
-		if (getkey() != '~')
+	case TERM_KEY_PAGE_UP:
+	case TERM_KEY_ALT('v'):
+		do_move_page(-1);
+		break;
+	case TERM_KEY_PAGE_DOWN:
+	case TERM_KEY_CTRL('V'):
+		do_move_page(+1);
+		break;
+	case TERM_KEY_TAB:
+		if (ctx.match_len == 0)
 			break;
-		/* FALLTHROUGH */
-	case ALT('v'):
-		move_page(-1);
+		strlcpy(ctx.input, ctx.match_buf[ctx.cur], sizeof(ctx.input));
+		do_filter(ctx.match_buf, ctx.match_len);
 		break;
-	case CSI('6'): /* page down */
-		if (getkey() != '~')
-			break;
-		/* FALLTHROUGH */
-	case CTL('V'):
-		move_page(+1);
-		break;
-	case CTL('I'): /* tab */
-		if (linec > 0) {
-			strncpy(input, matchv[cur], sizeof(input));
-			input[sizeof(input) - 1] = '\0';
-		}
-		filter(matchc, matchv);
-		break;
-	case CTL('J'):/* enter */
-	case CTL('M'):
-		print_selection();
+	case TERM_KEY_ENTER:
+	case TERM_KEY_CTRL('M'):
+		do_print_selection();
 		return 0;
-	case ALT('['):
-		k = CSI(getkey());
-		goto top;
-	case ESC:
-		k = ALT(getkey());
-		goto top;
 	default:
-		add_char((char) k);
+		do_add_char(key);
 	}
 
 	return 1;
@@ -328,80 +256,93 @@ top:
 static void
 print_line(char *line, int highlight)
 {
-	if (flag['#'] && line[0] == '#')
+	if (opt_comment && line[0] == '#') {
 		fprintf(stderr, "\n\x1b[1m\r%.*s\x1b[m",
-		    utf8_col(line + 1, ws.ws_col, 0), line + 1);
-	else if (highlight)
+		  term_at_width(line + 1, term.winsize.ws_col, 0), line + 1);
+	} else if (highlight) {
 		fprintf(stderr, "\n\x1b[47;30m\x1b[K\r%.*s\x1b[m",
-		    utf8_col(line, ws.ws_col, 0), line);
-	else
+		  term_at_width(line, term.winsize.ws_col, 0), line);
+	} else {
 		fprintf(stderr, "\n%.*s",
-		    utf8_col(line, ws.ws_col, 0), line);
+		  term_at_width(line, term.winsize.ws_col, 0), line);
+	}
 }
 
 static void
-print_screen(void)
+do_print_screen(void)
 {
 	char **m;
-	int p, i, c, cols, rows;
+	int p, c, cols, rows;
+	size_t i;
 
-	cols = ws.ws_col;
-	rows = ws.ws_row - 1; /* -1 to keep one line for user input */
+	cols = term.winsize.ws_col;
+	rows = term.winsize.ws_row - 1; /* -1 to keep one line for user input */
 	p = c = 0;
-	i = cur - cur % rows;
-	m = matchv + i;
-	fputs("\x1b[2J", stderr);
-	while (p < rows && i < matchc) {
-		print_line(*m, i == cur);
+	i = ctx.cur - ctx.cur % rows;
+	m = ctx.match_buf + i;
+	fprintf(stderr, "\x1b[2J");
+	while (p < rows && i < ctx.match_len) {
+		print_line(*m, i == ctx.cur);
 		p++, i++, m++;
 	}
-	fputs("\x1b[H", stderr);
-	fprintf(stderr, "%.*s", utf8_col(input, cols, c), input);
+	fprintf(stderr, "\x1b[H%.*s",
+	  term_at_width(ctx.input, cols, c), ctx.input);
 	fflush(stderr);
 }
 
-/*
- * Set terminal to raw mode.
- */
 static void
-term_set(void)
+sig_winch(int sig)
 {
-	struct termios new;
-
-	fputs("\x1b[s\x1b[?1049h\x1b[H", stderr);
-	if (tcgetattr(STDERR_FILENO, &termios) == -1 ||
-	    tcgetattr(STDERR_FILENO, &new) == -1)
-		iomenu_die("setting terminal");
-	new.c_lflag &= ~(ICANON | ECHO | IEXTEN | IGNBRK | ISIG);
-	if (tcsetattr(STDERR_FILENO, TCSANOW, &new) == -1)
-		iomenu_die("tcsetattr");
-}
-
-/*
- * Take terminal out of raw mode.
- */
-static void
-term_reset(void)
-{
-	fputs("\x1b[2J\x1b[u\033[?1049l", stderr);
-	if (tcsetattr(STDERR_FILENO, TCSANOW, &termios))
-		iomenu_die("resetting terminal");
-}
-
-static void
-sigwinch(int sig)
-{
-	if (ioctl(STDERR_FILENO, TIOCGWINSZ, &ws) == -1)
-		iomenu_die("ioctl");
-	print_screen();
-	signal(sig, sigwinch);
+	if (ioctl(STDERR_FILENO, TIOCGWINSZ, &term.winsize) == -1)
+		goodbye("ioctl");
+	do_print_screen();
+	signal(sig, sig_winch);
 }
 
 static void
 usage(char const *arg0)
 {
-	fprintf(stderr, "usage: %s [-#]\n", arg0);
+	fprintf(stderr, "usage: %s [-#] <lines\n", arg0);
 	exit(1);
+}
+
+static void
+read_stdin(char **buf, struct mem_pool *pool)
+{
+	if (mem_read((void **)buf, pool) < 0)
+		goodbye("reading standard input");
+	if (memchr(*buf, '\0', mem_length(*buf)) != NULL)
+		goodbye("'\\0' byte in input");
+	if (mem_append((void **)buf, "", 1) < 0)
+		goodbye("adding '\\0' terminator");
+}
+
+/*
+ * Split a buffer into an array of lines, without allocating memory for every
+ * line, but using the input buffer and replacing '\n' by '\0'.
+ */
+static void
+split_lines(char *s, struct mem_pool *pool)
+{
+	ctx.lines_buf = mem_alloc(pool, 0);
+	if (ctx.lines_buf == NULL)
+		goodbye("initializing full lines buffer");
+
+	ctx.lines_len = 0;
+	for (;;) {
+		if (mem_append((void **)&ctx.lines_buf, &s, sizeof s) < 0)
+			goodbye("adding line to array");
+		ctx.lines_len++;
+
+		s = strchr(s, '\n');
+		if (s == NULL)
+			break;
+		*s++ = '\0';
+	}
+
+	ctx.match_buf = mem_alloc(pool, mem_length(ctx.lines_buf));
+	if (ctx.match_buf == NULL)
+		goodbye("initializing matching lines buffer");
 }
 
 /*
@@ -412,32 +353,49 @@ usage(char const *arg0)
 int
 main(int argc, char *argv[])
 {
+	struct mem_pool pool = {0};
+	char *buf;
+
 	arg0 = *argv;
-	for (int c; (c = getopt(argc, argv, "#")) > 0; flag[c] = optarg)
-		if (c == '?')
+	for (int opt; (opt = getopt(argc, argv, "#v")) > 0;) {
+		switch (opt) {
+		case 'v':
+			fprintf(stdout, "%s\n", VERSION);
+			exit(0);
+		case '#':
+			opt_comment = 1;
+			break;
+		default:
 			usage(arg0);
+		}
+	}
 	argc -= optind;
 	argv += optind;
 
-	input[0] = '\0';
+	read_stdin(&buf, &pool);
+	split_lines(buf, &pool);
 
-	read_stdin();
-
-	filter(linec, linev);
+	do_filter(ctx.lines_buf, ctx.lines_len);
 
 	if (!isatty(2))
-		iomenu_die("file descriptor 2 (stderr)");
+		goodbye("file descriptor 2 (stderr)");
 
-	term_set();
-	sigwinch(SIGWINCH);
+	freopen("/dev/tty", "w+", stderr);
+	if (stderr == NULL)
+		goodbye("re-opening standard error read/write");
+
+	term_raw_on(2);
+	sig_winch(SIGWINCH);
 
 #ifdef __OpenBSD__
 	pledge("stdio tty", NULL);
 #endif
 
-	while (key() > 0)
-		print_screen();
-	term_reset();
+	while (key_action() > 0)
+		do_print_screen();
 
+	term_raw_off(2);
+
+	mem_free(&pool);
 	return 0;
 }

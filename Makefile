@@ -1,10 +1,10 @@
 NAME = iomenu
 VERSION = 0.1
 
-SRC = src/utf8.c src/str.c src/log.c src/mem.c src/compat/strcasestr.c \
-  src/compat/strsep.c src/compat/wcwidth.c
+SRC = src/utf8.c src/log.c src/mem.c src/compat/strcasestr.c \
+  src/compat/strsep.c src/compat/strlcpy.c src/compat/wcwidth.c src/term.c
 
-HDR = src/mem.h src/compat.h src/util.h src/str.h src/log.h src/utf8.h
+HDR = src/mem.h src/compat.h src/log.h src/term.h src/utf8.h
 
 BIN = iomenu
 
