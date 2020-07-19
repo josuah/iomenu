@@ -35,7 +35,7 @@ clean:
 
 install:
 	mkdir -p ${DESTDIR}${PREFIX}/bin
-	cp -rf ${BIN} ${DESTDIR}${PREFIX}/bin
+	cp -rf bin/* ${BIN} ${DESTDIR}${PREFIX}/bin
 	mkdir -p ${DESTDIR}${MANPREFIX}/man1
 	cp -rf doc/*.1 ${DESTDIR}${MANPREFIX}/man1
 
