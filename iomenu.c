@@ -10,23 +10,21 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include "compat.h"
-#include "log.h"
-#include "mem.h"
 #include "term.h"
 #include "utf8.h"
 
 struct {
-	FILE *tty;
 	char input[LINE_MAX];
 	size_t cur;
 
 	char **lines_buf;
-	size_t lines_len;
+	size_t lines_count;
 
 	char **match_buf;
-	size_t match_len;
+	size_t match_count;
 } ctx;
 
 int opt_comment;
@@ -51,20 +49,44 @@ match_line(char *line, char **tokv)
  * error message.
  */
 static void
-goodbye(const char *s)
+die(const char *msg)
 {
 	int e = errno;
 
 	term_raw_off(2);
+
+	fprintf(stderr, "iomenu: ");
 	errno = e;
-	die("%s", s);
+	perror(msg);
+
+	exit(1);
+}
+
+void *
+xrealloc(void *ptr, size_t sz)
+{
+	ptr = realloc(ptr, sz);
+	if (ptr == NULL)
+		die("realloc");
+	return ptr;
+}
+
+void *
+xmalloc(size_t sz)
+{
+	void *ptr;
+
+	ptr = malloc(sz);
+	if (ptr == NULL)
+		die("malloc");
+	return ptr;
 }
 
 static void
 do_move(int sign)
 {
 	/* integer overflow will do what we need */
-	for (size_t i = ctx.cur + sign; i < ctx.match_len; i += sign) {
+	for (size_t i = ctx.cur + sign; i < ctx.match_count; i += sign) {
 		if (opt_comment == 0 || ctx.match_buf[i][0] != '#') {
 			ctx.cur = i;
 			break;
@@ -78,7 +100,7 @@ do_move(int sign)
  * of `searchv' of size `searchc'
  */
 static void
-do_filter(char **search_buf, size_t search_len)
+do_filter(char **search_buf, size_t search_count)
 {
 	char **t, *tokv[(sizeof ctx.input + 1) * sizeof(char *)];
 	char *b, buf[sizeof ctx.input];
@@ -89,10 +111,10 @@ do_filter(char **search_buf, size_t search_len)
 		continue;
 	*t = NULL;
 
-	ctx.cur = ctx.match_len = 0;
-	for (size_t n = 0; n < search_len; n++)
+	ctx.cur = ctx.match_count = 0;
+	for (size_t n = 0; n < search_count; n++)
 		if (match_line(search_buf[n], tokv))
-			ctx.match_buf[ctx.match_len++] = search_buf[n];
+			ctx.match_buf[ctx.match_count++] = search_buf[n];
 	if (opt_comment && ctx.match_buf[ctx.cur][0] == '#')
 		do_move(+1);
 }
@@ -103,7 +125,7 @@ do_move_page(signed int sign)
 	int rows = term.winsize.ws_row - 1;
 	size_t i = ctx.cur - ctx.cur % rows + rows * sign;
 
-	if (i >= ctx.match_len)
+	if (i >= ctx.match_count)
 		return;
 	ctx.cur = i - 1;
 
@@ -120,7 +142,7 @@ do_move_header(signed int sign)
 	for (ctx.cur += sign;; ctx.cur += sign) {
 		char *cur = ctx.match_buf[ctx.cur];
 
-		if (ctx.cur >= ctx.match_len) {
+		if (ctx.cur >= ctx.match_count) {
 			ctx.cur--;
 			break;
 		}
@@ -142,7 +164,7 @@ do_remove_word(void)
 	len = strlen(ctx.input) - 1;
 	for (i = len; i >= 0 && !isspace(ctx.input[i]); i--)
 		ctx.input[i] = '\0';
-	do_filter(ctx.lines_buf, ctx.lines_len);
+	do_filter(ctx.lines_buf, ctx.lines_count);
 }
 
 static void
@@ -157,7 +179,7 @@ do_add_char(char c)
 		ctx.input[len] = c;
 		ctx.input[len + 1] = '\0';
 	}
-	do_filter(ctx.match_buf, ctx.match_len);
+	do_filter(ctx.match_buf, ctx.match_count);
 }
 
 static void
@@ -175,7 +197,7 @@ do_print_selection(void)
 		fprintf(stdout, "%c", '\t');
 	}
 	term_raw_off(2);
-	if (ctx.match_len == 0
+	if (ctx.match_count == 0
 	  || (opt_comment && ctx.match_buf[ctx.cur][0] == '#'))
 		fprintf(stdout, "%s\n", ctx.input);
 	else
@@ -204,7 +226,7 @@ key_action(void)
 		return -1;
 	case TERM_KEY_CTRL('U'):
 		ctx.input[0] = '\0';
-		do_filter(ctx.lines_buf, ctx.lines_len);
+		do_filter(ctx.lines_buf, ctx.lines_count);
 		break;
 	case TERM_KEY_CTRL('W'):
 		do_remove_word();
@@ -212,7 +234,7 @@ key_action(void)
 	case TERM_KEY_DELETE:
 	case TERM_KEY_BACKSPACE:
 		ctx.input[strlen(ctx.input) - 1] = '\0';
-		do_filter(ctx.lines_buf, ctx.lines_len);
+		do_filter(ctx.lines_buf, ctx.lines_count);
 		break;
 	case TERM_KEY_ARROW_UP:
 	case TERM_KEY_CTRL('P'):
@@ -237,10 +259,10 @@ key_action(void)
 		do_move_page(+1);
 		break;
 	case TERM_KEY_TAB:
-		if (ctx.match_len == 0)
+		if (ctx.match_count == 0)
 			break;
 		strlcpy(ctx.input, ctx.match_buf[ctx.cur], sizeof(ctx.input));
-		do_filter(ctx.match_buf, ctx.match_len);
+		do_filter(ctx.match_buf, ctx.match_count);
 		break;
 	case TERM_KEY_ENTER:
 	case TERM_KEY_CTRL('M'):
@@ -281,7 +303,7 @@ do_print_screen(void)
 	i = ctx.cur - ctx.cur % rows;
 	m = ctx.match_buf + i;
 	fprintf(stderr, "\x1b[2J");
-	while (p < rows && i < ctx.match_len) {
+	while (p < rows && i < ctx.match_count) {
 		print_line(*m, i == ctx.cur);
 		p++, i++, m++;
 	}
@@ -294,7 +316,7 @@ static void
 sig_winch(int sig)
 {
 	if (ioctl(STDERR_FILENO, TIOCGWINSZ, &term.winsize) == -1)
-		goodbye("ioctl");
+		die("ioctl");
 	do_print_screen();
 	signal(sig, sig_winch);
 }
@@ -306,15 +328,25 @@ usage(char const *arg0)
 	exit(1);
 }
 
-static void
-read_stdin(char **buf, struct mem_pool *pool)
+static int
+read_stdin(char **buf)
 {
-	if (mem_read((void **)buf, pool) < 0)
-		goodbye("reading standard input");
-	if (memchr(*buf, '\0', mem_length(*buf)) != NULL)
-		goodbye("'\\0' byte in input");
-	if (mem_append((void **)buf, "", 1) < 0)
-		goodbye("adding '\\0' terminator");
+	size_t len = 0;
+
+	assert(*buf == NULL);
+
+	for (int c; (c = fgetc(stdin)) != EOF;) {
+		if (c == '\0') {
+			fprintf(stderr, "iomenu: ignoring '\\0' byte in input\r\n");
+			continue;
+		}
+		*buf = xrealloc(*buf, sizeof *buf + len + 1);
+		(*buf)[len++] = c;
+	}
+	*buf = xrealloc(*buf, sizeof *buf + len + 1);
+	(*buf)[len] = '\0';
+
+	return 0;
 }
 
 /*
@@ -322,27 +354,24 @@ read_stdin(char **buf, struct mem_pool *pool)
  * line, but using the input buffer and replacing '\n' by '\0'.
  */
 static void
-split_lines(char *s, struct mem_pool *pool)
+split_lines(char *s)
 {
-	ctx.lines_buf = mem_alloc(pool, 0);
-	if (ctx.lines_buf == NULL)
-		goodbye("initializing full lines buffer");
+	size_t sz;
 
-	ctx.lines_len = 0;
+	ctx.lines_count = 0;
 	for (;;) {
-		if (mem_append((void **)&ctx.lines_buf, &s, sizeof s) < 0)
-			goodbye("adding line to array");
-		ctx.lines_len++;
+		sz = (ctx.lines_count + 1) * sizeof s;
+		ctx.lines_buf = xrealloc(ctx.lines_buf, sz);
+		ctx.lines_buf[ctx.lines_count++] = s;
 
 		s = strchr(s, '\n');
 		if (s == NULL)
 			break;
 		*s++ = '\0';
 	}
-
-	ctx.match_buf = mem_alloc(pool, mem_length(ctx.lines_buf));
-	if (ctx.match_buf == NULL)
-		goodbye("initializing matching lines buffer");
+	sz = ctx.lines_count * sizeof s;
+	ctx.match_buf = xmalloc(sz);
+	memcpy(ctx.match_buf, ctx.lines_buf, sz);
 }
 
 /*
@@ -353,8 +382,7 @@ split_lines(char *s, struct mem_pool *pool)
 int
 main(int argc, char *argv[])
 {
-	struct mem_pool pool = {0};
-	char *buf;
+	char *buf = NULL, *arg0;
 
 	arg0 = *argv;
 	for (int opt; (opt = getopt(argc, argv, "#v")) > 0;) {
@@ -372,17 +400,17 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	read_stdin(&buf, &pool);
-	split_lines(buf, &pool);
+	read_stdin(&buf);
+	split_lines(buf);
 
-	do_filter(ctx.lines_buf, ctx.lines_len);
+	do_filter(ctx.lines_buf, ctx.lines_count);
 
 	if (!isatty(2))
-		goodbye("file descriptor 2 (stderr)");
+		die("file descriptor 2 (stderr)");
 
 	freopen("/dev/tty", "w+", stderr);
 	if (stderr == NULL)
-		goodbye("re-opening standard error read/write");
+		die("re-opening standard error read/write");
 
 	term_raw_on(2);
 	sig_winch(SIGWINCH);
@@ -396,6 +424,5 @@ main(int argc, char *argv[])
 
 	term_raw_off(2);
 
-	mem_free(&pool);
 	return 0;
 }

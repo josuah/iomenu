@@ -7,7 +7,7 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
-#include "compat.h"
+#include "wcwidth.h"
 #include "utf8.h"
 
 struct term term = {0};

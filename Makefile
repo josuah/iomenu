@@ -1,12 +1,11 @@
 NAME = iomenu
 VERSION = 0.1
 
-SRC = src/utf8.c src/log.c src/mem.c src/compat/strcasestr.c \
-  src/compat/strsep.c src/compat/strlcpy.c src/compat/wcwidth.c src/term.c
-HDR = src/mem.h src/compat.h src/log.h src/term.h src/utf8.h
+SRC = utf8.c compat.c wcwidth.c term.c
+HDR = utf8.h compat.h wcwidth.h term.h
+OBJ = ${SRC:.c=.o}
 BIN = iomenu
 MAN1 = ${BIN:=.1}
-OBJ = ${SRC:.c=.o}
 LIB =
 
 W = -Wall -Wextra -std=c99 --pedantic
@@ -28,7 +27,7 @@ ${BIN}: ${OBJ} ${BIN:=.o}
 	${CC} ${LDFLAGS} -o $@ $@.o ${OBJ} ${LIB}
 
 clean:
-	rm -rf *.o */*.o ${BIN} ${NAME}-${VERSION} *.gz
+	rm -rf *.o ${BIN} ${NAME}-${VERSION} *.gz
 
 install:
 	mkdir -p ${DESTDIR}${PREFIX}/bin

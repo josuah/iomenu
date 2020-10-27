@@ -28,7 +28,6 @@ struct term {
 	struct termios old_termios;
 };
 
-/** src/term.c **/
 struct term term;
 int term_width_at_pos(uint32_t codepoint, int pos);
 int term_at_width(char const *s, int width, int pos);
