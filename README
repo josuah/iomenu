@@ -1,1 +1,20 @@
-doc/index.md
+iomenu
+======
+
+*iomenu* is an interactive menu inspired from dmenu [1]: it reads lines from
+stdin display them to the screen [1], and filter them as the user type.  When
+`Enter` is pressed, the selected line is printed to stdout.
+
+This permits to build interactive menu with shell pipes.  As an example, a poor
+man's music player could be done this way:
+
+	$ find ~/music -name '*.flac' | iomenu | xargs mplayer
+
+It will print all the FLAC files in `~/music` to iomenu which shows a fulscreen
+menu, and the selected file will be printed to xargs mplayer.
+
+iomenu does not use ncurses but ansi escape sequences [2] instead so it does
+not have dependencies beyond a C compiler.
+
+[1]: https://tools.suckless.org/dmenu
+[2]: https://en.wikipedia.org/wiki/ANSI_escape_code

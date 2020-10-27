@@ -3,13 +3,10 @@ VERSION = 0.1
 
 SRC = src/utf8.c src/log.c src/mem.c src/compat/strcasestr.c \
   src/compat/strsep.c src/compat/strlcpy.c src/compat/wcwidth.c src/term.c
-
 HDR = src/mem.h src/compat.h src/log.h src/term.h src/utf8.h
-
 BIN = iomenu
-
+MAN1 = ${BIN:=.1}
 OBJ = ${SRC:.c=.o}
-
 LIB =
 
 W = -Wall -Wextra -std=c99 --pedantic
@@ -37,9 +34,9 @@ install:
 	mkdir -p ${DESTDIR}${PREFIX}/bin
 	cp -rf bin/* ${BIN} ${DESTDIR}${PREFIX}/bin
 	mkdir -p ${DESTDIR}${MANPREFIX}/man1
-	cp -rf doc/*.1 ${DESTDIR}${MANPREFIX}/man1
+	cp -rf ${MAN1} ${DESTDIR}${MANPREFIX}/man1
 
 dist: clean
 	mkdir -p ${NAME}-${VERSION}
-	cp -r README Makefile doc ${SRC} ${NAME}-${VERSION}
+	cp -r README Makefile ${MAN1} ${SRC} ${NAME}-${VERSION}
 	tar -cf - ${NAME}-${VERSION} | gzip -c >${NAME}-${VERSION}.tar.gz
