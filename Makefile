@@ -15,7 +15,7 @@ LIB =
 W = -Wall -Wextra -std=c99 --pedantic
 I = -I./src
 L =
-D = -D_POSIX_C_SOURCE=200811L -DVERSION='"${VERSION}"'
+D = -DVERSION='"${VERSION}"'
 CFLAGS = $I $D $W -g
 LDFLAGS = $L -static
 PREFIX = /usr/local
