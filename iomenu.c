@@ -11,7 +11,6 @@
 #include <termios.h>
 #include <unistd.h>
 #include <assert.h>
-
 #include "compat.h"
 #include "term.h"
 #include "utf8.h"

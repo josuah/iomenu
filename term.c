@@ -1,12 +1,10 @@
 #include "term.h"
-
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
-
 #include "compat.h"
 #include "utf8.h"
 
