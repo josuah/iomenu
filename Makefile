@@ -1,21 +1,16 @@
 NAME = iomenu
 VERSION = 0.1
 
-SRC = utf8.c compat.c wcwidth.c term.c
-HDR = utf8.h compat.h wcwidth.h term.h
-OBJ = ${SRC:.c=.o}
-BIN = iomenu
-MAN1 = ${BIN:=.1}
-LIB =
-
-W = -Wall -Wextra -std=c99 --pedantic
-I = -I./src
-L =
-D = -DVERSION='"${VERSION}"'
-CFLAGS = $I $D $W -g
-LDFLAGS = $L -static
+CFLAGS = -DVERSION='"${VERSION}"' -I./src  -Wall -Wextra -std=c99 --pedantic -g
+LDFLAGS = -static
 PREFIX = /usr/local
 MANPREFIX = ${PREFIX}/man
+
+SRC = utf8.c compat.c wcwidth.c term.c
+HDR = utf8.h compat.h term.h
+OBJ = ${SRC:.c=.o}
+BIN = iomenu
+MAN1 = iomenu.1
 
 all: ${BIN}
 

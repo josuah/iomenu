@@ -7,10 +7,10 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
-#include "wcwidth.h"
+#include "compat.h"
 #include "utf8.h"
 
-struct term term = {0};
+struct term term;
 
 static int
 term_codepoint_width(uint32_t codepoint, int pos)

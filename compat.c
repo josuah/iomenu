@@ -1,9 +1,7 @@
+#include "compat.h"
 #include <ctype.h>
 #include <stddef.h>
-
 #include <string.h>
-
-#include "compat.h"
 
 char *
 strcasestr(const char *str1, const char *str2)

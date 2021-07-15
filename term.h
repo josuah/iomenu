@@ -28,11 +28,12 @@ struct term {
 	struct termios old_termios;
 };
 
-struct term term;
-int term_width_at_pos(uint32_t codepoint, int pos);
-int term_at_width(char const *s, int width, int pos);
-int term_raw_on(int fd);
-int term_raw_off(int fd);
-int term_get_key(FILE *fp);
+extern struct term term;
+
+int	term_width_at_pos(uint32_t codepoint, int pos);
+int	term_at_width(char const *s, int width, int pos);
+int	term_raw_on(int fd);
+int	term_raw_off(int fd);
+int	term_get_key(FILE *fp);
 
 #endif
