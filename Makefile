@@ -32,5 +32,5 @@ install:
 
 dist: clean
 	mkdir -p ${NAME}-${VERSION}
-	cp -r README Makefile ${MAN1} ${SRC} ${NAME}-${VERSION}
+	cp -r README Makefile bin ${MAN1} ${SRC} ${NAME}-${VERSION}
 	tar -cf - ${NAME}-${VERSION} | gzip -c >${NAME}-${VERSION}.tar.gz

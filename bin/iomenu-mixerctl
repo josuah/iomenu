@@ -1,0 +1,11 @@
+#!/bin/sh -e
+# set a mixerctl key to chosen value
+
+ctl=$(mixerctl -a | iomenu | sed 's/=.*//')
+test -n "$ctl"
+
+printf 'Set value of %s to: ' "$ctl" >&2
+read -r value
+
+set -x
+exec mixerctl "$ctl=$value"
